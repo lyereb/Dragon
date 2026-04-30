@@ -1,0 +1,7 @@
+/Client/Main/Library
+/Client/Main/.vscode
+*.csproj
+/Client/Main/Logs
+/Client/Main/Temp
+/Client/Main/UserSettings
+*.sln

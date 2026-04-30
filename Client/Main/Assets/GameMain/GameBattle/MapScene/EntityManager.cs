@@ -1,0 +1,201 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EntityManager
+{
+    private readonly List<Entity> _entities = new List<Entity>();
+    private readonly Dictionary<Entity, GameObject> _entitySkinMap = new Dictionary<Entity, GameObject>();
+    private Transform _entityRoot;
+
+    public IReadOnlyList<Entity> Entities => _entities;
+
+    public void Initialize()
+    {
+        _entities.Clear();
+        _entitySkinMap.Clear();
+        InitializeEntityRoot();
+    }
+
+    public void AddEntity(Entity entity)
+    {
+        if (entity == null)
+        {
+            return;
+        }
+
+        _entities.Add(entity);
+        RegisterEntitySkin(entity);
+    }
+
+    public void AddEntities(IEnumerable<Entity> entities)
+    {
+        if (entities == null)
+        {
+            return;
+        }
+
+        foreach (Entity entity in entities)
+        {
+            AddEntity(entity);
+        }
+    }
+
+    public void Clear()
+    {
+        for (int i = 0; i < _entities.Count; i++)
+        {
+            Entity entity = _entities[i];
+            if (entity == null)
+            {
+                continue;
+            }
+
+            entity.Uninitialize();
+            UnregisterAndDestroyEntitySkin(entity);
+        }
+
+        _entities.Clear();
+        _entitySkinMap.Clear();
+    }
+
+    public void Update(float dt)
+    {
+        for (int i = 0; i < _entities.Count; i++)
+        {
+            Entity entity = _entities[i];
+            entity.Update(dt);
+            SyncEntitySkinTransform(entity);
+        }
+    }
+
+    public void LateUpdate(float dt)
+    {
+        for (int i = 0; i < _entities.Count; i++)
+        {
+            _entities[i].LateUpdate(dt);
+        }
+    }
+
+    //占位检测, entity是否被其他entity的rigidbody阻挡
+    //mover: 移动者
+    //targetX: 目标X
+    //targetZ: 目标Z
+    //返回值: 是否被阻挡
+    public bool IsBlockedByRigidbody(Entity mover, float targetX, float targetZ)
+    {
+        if (mover == null || mover.Data == null)
+        {
+            return false;
+        }
+
+        float moverHalfWidth = Mathf.Max(0f, mover.Data.WidthSize * 0.5f);
+        float moverHalfDepth = Mathf.Max(0f, mover.Data.DepthSize * 0.5f);
+        float moverMinX = targetX - moverHalfWidth;
+        float moverMaxX = targetX + moverHalfWidth;
+        float moverMinZ = targetZ - moverHalfDepth;
+        float moverMaxZ = targetZ + moverHalfDepth;
+
+        for (int i = 0; i < _entities.Count; i++)
+        {
+            Entity other = _entities[i];
+            if (other == null || other == mover || other.Data == null || other.Data.Position == null)
+            {
+                continue;
+            }
+
+            if (!other.Data.isRigidbody)
+            {
+                continue;
+            }
+
+            Vector3 otherPos = other.Data.Position.LogicPosition;
+            float otherHalfWidth = Mathf.Max(0f, other.Data.WidthSize * 0.5f);
+            float otherHalfDepth = Mathf.Max(0f, other.Data.DepthSize * 0.5f);
+            float otherMinX = otherPos.x - otherHalfWidth;
+            float otherMaxX = otherPos.x + otherHalfWidth;
+            float otherMinZ = otherPos.z - otherHalfDepth;
+            float otherMaxZ = otherPos.z + otherHalfDepth;
+
+            bool overlapX = moverMinX < otherMaxX && moverMaxX > otherMinX;
+            bool overlapZ = moverMinZ < otherMaxZ && moverMaxZ > otherMinZ;
+            if (overlapX && overlapZ)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void InitializeEntityRoot()
+    {
+        GameObject entityRootObject = GameObject.Find("EntityRoot");
+        if (entityRootObject == null)
+        {
+            entityRootObject = new GameObject("EntityRoot");
+        }
+        _entityRoot = entityRootObject.transform;
+
+        EntityOccupancyGizmoDrawer gizmoDrawer = entityRootObject.GetComponent<EntityOccupancyGizmoDrawer>();
+        if (gizmoDrawer == null)
+        {
+            gizmoDrawer = entityRootObject.AddComponent<EntityOccupancyGizmoDrawer>();
+        }
+        gizmoDrawer.Bind(this);
+    }
+
+    private void RegisterEntitySkin(Entity entity)
+    {
+        if (entity == null || entity.Skin == null)
+        {
+            return;
+        }
+
+        if (_entityRoot == null)
+        {
+            InitializeEntityRoot();
+        }
+
+        entity.Skin.transform.SetParent(_entityRoot, false);
+        SyncEntitySkinTransform(entity);
+        _entitySkinMap[entity] = entity.Skin;
+    }
+
+    private void SyncEntitySkinTransform(Entity entity)
+    {
+        if (entity == null || entity.Data?.Position == null)
+        {
+            return;
+        }
+
+        if (!_entitySkinMap.TryGetValue(entity, out GameObject skin) || skin == null)
+        {
+            return;
+        }
+
+        skin.transform.position = entity.Data.Position.GetRenderPosition();
+    }
+
+    private void UnregisterAndDestroyEntitySkin(Entity entity)
+    {
+        if (entity == null)
+        {
+            return;
+        }
+
+        if (_entitySkinMap.TryGetValue(entity, out GameObject skin))
+        {
+            if (skin != null)
+            {
+                Object.Destroy(skin);
+            }
+            _entitySkinMap.Remove(entity);
+            return;
+        }
+
+        if (entity.Skin != null)
+        {
+            Object.Destroy(entity.Skin);
+        }
+    }
+}

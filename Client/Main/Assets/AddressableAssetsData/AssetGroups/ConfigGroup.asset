@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: ConfigGroup
+  m_EditorClassIdentifier: 
+  m_GroupName: ConfigGroup
+  m_Data:
+    m_SerializedData: []
+  m_GUID: a5e409cc767430f42bec42f37ebbcfd4
+  m_SerializeEntries:
+  - m_GUID: 011c9829aba224441b074af3d9fee25f
+    m_Address: Configs/dragon_tbmap
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 059eeaa4392097a4cb94d129c2e359f2
+    m_Address: Configs/skill_dragon_tbbuffskill
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 05cc801f38ee3b6438f27373a1ccb30b
+    m_Address: Configs/skill_dragon_tblaunchskill
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 279bd64a306b1b64ab2647c949a5f91a
+    m_Address: Configs/skill_dragon_tbactionskill
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 29c607cb07fdfc547a1e724281fa96ce
+    m_Address: ConfigFileList
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2e3f4e2ba01abc84d80635868d6fb8d0
+    m_Address: Configs/entity_dragon_tbnpc
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 30a61a15cc5c78f40a1d5ce0e0ee2594
+    m_Address: Configs/skill_dragon_tbbuff
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 31a15357496517b46884ab712f9a5f96
+    m_Address: Configs/entity_dragon_tbplayer
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5789e87b6dfb58040b1e56030aebdab5
+    m_Address: Configs/dragon_tblocalization
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7efdbe1d143041443a1c31f70052e648
+    m_Address: Configs/dragon_tbitem
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c442604518044b04fadbf628ebb1d0a1
+    m_Address: Configs/entity_dragon_tbenemy
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f9a42e23484037f438710cec1823041d
+    m_Address: Configs/entity_dragon_tbblock
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 2b5d540c8d897c64cba2737b3f17c535, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 686b2cdd491330640b604a1bd6569738, type: 2}
+    - {fileID: 11400000, guid: 1ab137b564d815849a75626efe312fb8, type: 2}

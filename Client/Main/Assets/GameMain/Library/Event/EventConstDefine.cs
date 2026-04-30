@@ -1,0 +1,48 @@
+﻿namespace Dragon.Library
+{
+    /// <summary>
+    /// 消息常量定义
+    /// </summary>
+    public class EventConstDefine
+    {
+        //核心基础消息ID
+        public const int EVENT_MAIN_BASE_ID = 0;
+        //UI消息的基础ID
+        public const int EVENT_UI_BASE_ID = 100000;
+        //战斗消息的基础ID
+        public const int EVENT_BATTLE_BASE_ID = 200000;
+    }
+
+    /// <summary>
+    /// 主消息定义
+    /// </summary>
+    public class MainEventDefine
+    {
+        //基础
+        private const int EID_BASE = EventConstDefine.EVENT_MAIN_BASE_ID;
+        /// <summary>
+        /// 道具数量发生任何变化后派发；param 为 <see cref="Dragon.Logic.ItemChangeEventParam"/>。
+        /// </summary>
+        public const int EID_ITEM_INVENTORY_CHANGED = EID_BASE + 1;
+    }
+
+    /// <summary>
+    /// UI消息定义
+    /// </summary>
+    public class UIEventDefine
+    {
+        //基础
+        private const int EID_BASE = EventConstDefine.EVENT_UI_BASE_ID;
+        public const int EID_UI_TIMER_UPDATE_EVENT = EID_BASE + 1;
+    }
+
+    /// <summary>
+    /// 逻辑消息定义
+    /// </summary>
+    public class BattleEventDefine
+    {
+        //基础
+        private const int EID_BASE = EventConstDefine.EVENT_BATTLE_BASE_ID;
+        public const int EID_BATTLE_ATTACK_EVENT = EID_BASE + 1;
+    }
+}

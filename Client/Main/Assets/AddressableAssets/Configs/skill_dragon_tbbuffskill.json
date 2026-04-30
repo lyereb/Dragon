@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "desc": "",
+    "cost": 0,
+    "coolDown": 0,
+    "animation": "",
+    "recoverTime": 0,
+    "BuffList": []
+  }
+]

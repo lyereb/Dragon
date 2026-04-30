@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6283d6a54b043754286ae7ac00d1163d, type: 3}
+  m_Name: ConfigFileList
+  m_EditorClassIdentifier: 
+  loadFormat: json
+  configFileNames:
+  - dragon_tbitem
+  - dragon_tblocalization
+  - dragon_tbmap
+  - entity_dragon_tbblock
+  - entity_dragon_tbenemy
+  - entity_dragon_tbnpc
+  - entity_dragon_tbplayer
+  - skill_dragon_tbactionskill
+  - skill_dragon_tbbuff
+  - skill_dragon_tbbuffskill
+  - skill_dragon_tblaunchskill
