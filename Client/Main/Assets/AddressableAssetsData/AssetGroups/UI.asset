@@ -23,6 +23,12 @@ MonoBehaviour:
     m_SerializedLabels:
     - UI
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 262f1f5db57303147bb4436f64f18ac3
+    m_Address: ui_toast
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - UI
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5454f809cc57bc0458af27cb0199bb1d
     m_Address: main_loading
     m_ReadOnly: 0

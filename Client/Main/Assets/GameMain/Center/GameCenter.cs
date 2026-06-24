@@ -34,6 +34,7 @@ namespace Dragon.Library
         public static GameSaveManager SaveManager = null;
         public static GameUIManager GameUIManager = null;
         public static PopupManager PopupManager = null;
+        public static ToastManager ToastManager = null;
         public static UIQueueManager UIQueueManager = null;
         public static PoolManager PoolManager = null;
         public static SchedulerManager SchedulerManager = null;
@@ -160,6 +161,7 @@ namespace Dragon.Library
             SaveManager = GameSaveManager.Instance;
             GameUIManager = GameUIManager.Instance;
             PopupManager = PopupManager.Instance;
+            ToastManager = ToastManager.Instance;
             UIQueueManager = UIQueueManager.Instance;
             PoolManager = PoolManager.Instance;
             SchedulerManager = SchedulerManager.Instance;
