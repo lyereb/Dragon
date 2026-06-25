@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 9eff80b15dc42ac46ba4c8dd7cd073a7
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontNames:
+  - Survivors
+  fallbackFontReferences: []
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: gameassets/runassets/gameui/base/font/mainfont.unity3d
+  assetBundleVariant: 
