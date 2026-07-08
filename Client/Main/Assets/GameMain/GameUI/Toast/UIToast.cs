@@ -1,4 +1,4 @@
-using System.Collections;
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
 
@@ -15,7 +15,7 @@ namespace Dragon.GameUI
         [SerializeField] private float _fadeDuration = 0.35f;
 
         private CanvasGroup _fadeCanvasGroup;
-        private Coroutine _showRoutine;
+        private Sequence _showSequence;
 
         private void Awake()
         {
@@ -33,13 +33,8 @@ namespace Dragon.GameUI
             float resolvedFadeDuration = fadeDuration >= 0f ? fadeDuration : _fadeDuration;
 
             ResetFadeAlpha();
-
-            if (_showRoutine != null)
-            {
-                StopCoroutine(_showRoutine);
-            }
-
-            _showRoutine = StartCoroutine(ShowRoutine(resolvedDisplayDuration, resolvedFadeDuration));
+            KillShowSequence();
+            PlayShowSequence(resolvedDisplayDuration, resolvedFadeDuration);
         }
 
         private void CacheFadeCanvasGroup()
@@ -72,27 +67,36 @@ namespace Dragon.GameUI
             }
         }
 
-        private IEnumerator ShowRoutine(float displayDuration, float fadeDuration)
+        private void PlayShowSequence(float displayDuration, float fadeDuration)
         {
+            _showSequence = DOTween.Sequence();
+
             if (displayDuration > 0f)
             {
-                yield return new WaitForSecondsRealtime(displayDuration);
+                _showSequence.AppendInterval(displayDuration);
             }
 
             if (_fadeCanvasGroup != null && fadeDuration > 0f)
             {
-                float elapsed = 0f;
-                while (elapsed < fadeDuration)
-                {
-                    elapsed += Time.unscaledDeltaTime;
-                    _fadeCanvasGroup.alpha = 1f - Mathf.Clamp01(elapsed / fadeDuration);
-                    yield return null;
-                }
-
-                _fadeCanvasGroup.alpha = 0f;
+                _showSequence.Append(_fadeCanvasGroup.DOFade(0f, fadeDuration));
             }
 
-            Destroy(gameObject);
+            _showSequence
+                .OnComplete(() => Destroy(gameObject))
+                .SetUpdate(true)
+                .SetLink(gameObject);
+        }
+
+        private void KillShowSequence()
+        {
+            if (_showSequence == null || !_showSequence.IsActive())
+            {
+                _showSequence = null;
+                return;
+            }
+
+            _showSequence.Kill();
+            _showSequence = null;
         }
     }
 }
