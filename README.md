@@ -1,20 +1,58 @@
 # Dragon
 
-基于 Unity 的游戏框架，核心入口为 `GameCenter`。启动时由 `GameCenterScript` 创建系统、异步初始化各模块，并在每帧驱动状态机、调度器与战斗场景。
+基于 Unity 2022.3 LTS 的 2D 游戏客户端框架，核心入口为 `GameCenter`。启动时由 `GameCenterScript` 创建系统、异步初始化各模块，并在每帧驱动状态机、调度器与地图场景。
 
-**项目路径：** `Client/Main/Assets/GameMain/`
+**Unity 工程路径：** `Client/Main/`  
+**核心代码路径：** `Client/Main/Assets/GameMain/`
+
+---
+
+## 仓库结构
+
+```
+Dragon/
+├── Client/Main/          ← Unity 工程（场景、资源、GameMain 代码）
+├── Config/               ← Luban 配置表源数据与生成脚本
+│   ├── Datas/            ← Excel 源表（item、map、entity、skill 等）
+│   ├── luban.conf        ← 生成配置（client / server / all）
+│   └── gen.bat / gen.sh  ← 生成脚本
+└── README.md
+```
+
+配置生成输出：
+- **C# 代码** → `Client/Main/Assets/GameMain/GameConfig/`
+- **JSON 数据** → `Client/Main/Assets/AddressableAssets/Configs/`
+
+---
+
+## GameMain 目录
+
+代码按领域分层，统一通过 `GameCenter` 总线访问：
+
+| 目录 | 说明 |
+|------|------|
+| `Center/` | `GameCenter`、`GameCenterScript` 入口 |
+| `Library/` | 基础框架：资源、事件、协程、对象池、调度器、HTTP、DebugLog 等 |
+| `Logic/` | 游戏逻辑：状态机、输入、音频、道具、回合制 |
+| `GameBattle/` | 战斗与实体：地图场景、实体 FSM、移动/攻击控制、伤害结算、Y 轴排序渲染 |
+| `GameUI/` | UI 管理：主界面、弹窗、Toast、UI 工具组件 |
+| `GameData/` | 运行时用户数据与存档 |
+| `GameConfig/` | Luban 自动生成，勿手改 |
+| `Global/` | 全局常量、Addressables 标签名、伤害类型枚举 |
 
 ---
 
 ## 启动与生命周期
 
 ```
-GameCenterScript.Create()
-  └─ Awake / Start
-       ├─ GameCenter.CreateSystem()     // 创建单例，不加载资源
-       └─ GameCenter.Initialize()       // 协程异步初始化
-            ├─ CoreInitialize           // 配置、资源、存档等
-            └─ LogicInitialize          // 本地化、音频、道具、地图等
+Boot 场景
+  └─ GameCenterScript.Create()
+       ├─ Awake / Start
+       │    ├─ GameCenter.CreateSystem()     // 创建单例，不加载资源
+       │    └─ GameCenter.Initialize()       // 协程异步初始化
+       │         ├─ CoreInitialize           // 配置、资源、存档、DebugLog 等
+       │         └─ LogicInitialize          // 本地化、音频、道具、地图等
+       └─ 每帧 Update / LateUpdate
 ```
 
 | 阶段 | 方法 | 说明 |
@@ -22,7 +60,7 @@ GameCenterScript.Create()
 | 创建 | `GameCenter.CreateSystem()` | 实例化所有 Manager 单例 |
 | 初始化 | `GameCenter.Initialize()` | 加载配置表、预加载资源、读存档 |
 | 每帧 | `GameCenter.Update / LateUpdate` | 驱动状态机、调度器、终端、地图 |
-| 卸载 | `GameCenter.Uninitialize()` | 释放音频、实体、事件等 |
+| 卸载 | `GameCenter.Uninitialize()` | 释放音频、实体、事件、DebugLog 等 |
 | 重置逻辑 | `GameCenter.ResetLogicSystem()` | 仅重建逻辑层（不重建 Core） |
 
 访问已注册模块统一通过 `GameCenter.XXX`，例如 `GameCenter.EventManager`、`GameCenter.ConfigManager`。
@@ -60,7 +98,7 @@ GameCenter.StateManager.ChangeState(GameStateCode.Fight, param);
 | | |
 |---|---|
 | 位置 | `Assets/GameMain/Global/GlobalDefine.cs` |
-| 概要 | 主菜单场景名、战斗常量、Addressables 预加载标签名 |
+| 概要 | 主菜单场景名、战斗常量（重力、速度倍率）、Addressables 预加载标签名、`DamageType` 枚举 |
 
 ---
 
@@ -219,7 +257,7 @@ GameCenter.PopupManager.ClosePopup("popup_confirm");
 |---|---|
 | 命名空间 | `Dragon.GameUI` |
 | GC / Init | 是 / 懒创建 |
-| 概要 | 浮动提示，每次 `Show` 实例化一条，支持多条并存 |
+| 概要 | 浮动提示，每次 `Show` 实例化一条，支持多条并存；渐隐动画基于 DOTween |
 
 ```csharp
 GameCenter.ToastManager.Show("获得金币 x100");
@@ -271,6 +309,22 @@ await GameCenter.PoolManager.RegisterAsync("fx_hit", prewarm: 5);
 int id = GameCenter.SchedulerManager.Delay(1.5f, () => Debug.Log("延迟执行"), owner: this);
 GameCenter.SchedulerManager.Interval(0.5f, OnTick, owner: this);
 GameCenter.SchedulerManager.CancelByOwner(this);
+```
+
+### DebugLogManager
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Library` |
+| 位置 | `Assets/GameMain/Library/DebugLog/` |
+| GC / Init | 是 / `Init()`（`NewCoreSystem` 中调用），卸载时 `Shutdown()` |
+| 概要 | 收集 Unity Console 日志到内存缓冲，配合 `popup_debug_log` 弹窗查看 |
+
+```csharp
+// 启动后自动收集，也可手动打开弹窗
+GameCenter.DebugLogManager.OpenPopup();
+string all = GameCenter.DebugLogManager.GetFullText();
+GameCenter.DebugLogManager.Clear();
 ```
 
 ---
@@ -361,6 +415,17 @@ var player = GameCenter.MapSceneManager.EntityManager.Entities; // 遍历实体
 
 通过 `GameCenter.MapSceneManager.EntityManager` 访问。
 
+实体分层结构：
+
+| 子目录 | 说明 |
+|--------|------|
+| `EntityData/` | 纯数据：Character（Player/Enemy/Npc）、Interactable（Block） |
+| `EntityInherit/` | 运行时实体类：Character、Player、Enemy、Npc、Block |
+| `EntityState/` | 实体 FSM 状态（Idle/Move/Run/Jump/Birth/Death 等） |
+| `EntityControl/` | 输入提供者、移动控制器、攻击控制器 |
+| `EntityCombat/` | 伤害结算（`CombatDamageSettlement`、`IAttackable`） |
+| `EntityAction/` | 预留目录，尚无实现 |
+
 ### CameraManager
 
 | | |
@@ -378,6 +443,30 @@ var player = GameCenter.MapSceneManager.EntityManager.Entities; // 遍历实体
 | 概要 | 读取场景 `SpawnRoot` 下 `SpawnPoint`，按配置生成 NPC / 敌人 / 玩家 |
 
 地图场景需包含名为 `SpawnRoot` 的 GameObject。
+
+### CombatDamageSettlement
+
+| | |
+|---|---|
+| 命名空间 | 全局 |
+| 概要 | 统一伤害结算入口，基于双方 `Entity.Data` 属性计算最终伤害 |
+
+```csharp
+var result = CombatDamageSettlement.Settle(attacker, defender, hitContext);
+float damage = result.FinalDamage;
+```
+
+相关类型：`AttackHitContext`（命中上下文）、`DamageSettlementResult`（结算结果）、`IAttackable`（可受击接口）。
+
+### YSortRenderer
+
+| | |
+|---|---|
+| 命名空间 | 全局 |
+| 位置 | `Assets/GameMain/GameBattle/Render/` |
+| 概要 | 根据世界坐标 Y 轴动态调整 `Renderer.sortingOrder`，实现 2D 前后遮挡 |
+
+挂在角色或场景物件上；渲染器在子节点时，指定 `_sortTransform` 为逻辑位置节点。
 
 ### RoundManager
 
@@ -497,18 +586,6 @@ if (resp.IsSuccess) Debug.Log(resp.Text);
 long saveId = IDUtils.NewId();
 ```
 
-### DebugLogManager
-
-| | |
-|---|---|
-| 命名空间 | `Dragon.GameUI` |
-| 概要 | 收集 Unity Console 日志到内存缓冲，配合 `popup_debug_log` 弹窗查看 |
-
-```csharp
-DebugLogManager.Instance.Init(maxLines: 500);
-string all = DebugLogManager.Instance.GetFullText();
-```
-
 ### ResourceManagerDebugger
 
 | | |
@@ -522,15 +599,22 @@ string all = DebugLogManager.Instance.GetFullText();
 
 | 模块 | 说明 |
 |------|------|
-| `cfg.Tables` / `GameConfig/` | Luban 生成的配置表代码（item、map、skill、localization 等） |
+| `cfg.Tables` / `GameConfig/` | Luban 生成的配置表代码 |
+| `dragon/` | item、map、localization |
+| `entity/dragon/` | player、enemy、npc、block、CharacterAttr |
+| `skill/dragon/` | actionSkill、launchSkill、buffSkill、buff |
 | `GameUserData` / `GameMetaData` | 运行时用户数据与存档元信息 |
 | `ConfigFileList` | 配置清单 ScriptableObject，驱动 `ConfigManager` 批量加载 |
 
 查表统一入口：`GameCenter.ConfigManager.Tables`（须等待 `ConfigManager.Init()` 完成）。
 
+配置表修改流程：编辑 `Config/Datas/` 下 Excel → 运行 `Config/gen.bat` → 重新导入 Unity。
+
 ---
 
-## 七、UI 基类约定
+## 七、UI 基类与工具组件
+
+### 基类约定
 
 | 类型 | 基类 | 管理器 |
 |------|------|--------|
@@ -538,8 +622,20 @@ string all = DebugLogManager.Instance.GetFullText();
 | 弹窗 | `PopupBase<TData>` | `PopupManager` / `UIQueueManager` |
 | Toast | `UIToast` | `ToastManager` |
 | 本地化文本 | `LocalString` | 挂到 Text，随 `LocalManager.LanguageChanged` 刷新 |
+| Debug 日志弹窗 | `PopupDebugLog` | 通过 `DebugLogManager.OpenPopup()` 打开 |
 
 预制体通过 Addressables 地址加载，地址字符串通常与资源名一致（如 `"ui_lobby"`、`"popup_confirm"`）。
+
+### UI 工具组件
+
+挂载在 UI 预制体节点上，无需纳入 `GameCenter`：
+
+| 组件 | 说明 |
+|------|------|
+| `UIDisplayEffect` | Enable 时播放显示动效（如 ScaleIn），基于 DOTween |
+| `UIObjectStateMachine` | 两组对象列表在 Collapsed / Expanded 状态间切换 |
+| `UISpriteAnimator` | Image 帧动画播放，支持循环与 OnEnable 自动播放 |
+| `UITMPOutlineEffect` | TMP 描边/面/底纹效果，编辑器即时预览 |
 
 ---
 
@@ -547,21 +643,25 @@ string all = DebugLogManager.Instance.GetFullText();
 
 ```mermaid
 flowchart TB
-    GCS[GameCenterScript] --> GC[GameCenter]
+    Boot[Boot 场景] --> GCS[GameCenterScript]
+    GCS --> GC[GameCenter]
     GC --> Core[Core 内核]
     GC --> Logic[Logic 逻辑]
     Core --> RM[ResourceManager]
     Core --> CM[ConfigManager]
     Core --> EM[EventManager]
     Core --> DM[GameDataManager]
+    Core --> DLM[DebugLogManager]
     Core --> UI[GameUIManager / Popup / Toast]
     Logic --> MSM[MapSceneManager]
     MSM --> EntM[EntityManager]
     MSM --> CamM[CameraManager]
+    MSM --> Combat[CombatDamageSettlement]
     CM --> Luban[cfg.Tables]
     DM --> Save[GameSaveManager]
     Save --> FIO[FileIO]
     RM --> Addr[Addressables]
+    Config[Config/ Excel] -->|Luban gen| Luban
 ```
 
 ---
@@ -578,9 +678,16 @@ flowchart TB
 
 ## 技术栈
 
-- Unity + Addressables
-- UniTask（`Cysharp.Threading.Tasks`）
-- Luban（配置表）
-- Unity Input System（`PlayerInputAction`）
-- Cinemachine（战斗相机）
-- Newtonsoft.Json（存档序列化）
+| 类别 | 技术 | 版本 |
+|------|------|------|
+| 引擎 | Unity | 2022.3.62f3c1 LTS |
+| 渲染 | URP (2D) | 14.0.12 |
+| 资源 | Addressables | 1.22.3 |
+| 异步 | UniTask | Plugins 内置 |
+| 配置 | Luban | 1.1.1 |
+| 输入 | Unity Input System | 1.14.2 |
+| 相机 | Cinemachine | 2.10.7 |
+| 动画/UI 动效 | DOTween | Demigiant 插件 |
+| 文本 | TextMesh Pro + MiSans 字体 | 3.0.9 |
+| 序列化 | Newtonsoft.Json | 3.2.2 |
+| IDE | Cursor IDE 包 | 2.0.27 |
