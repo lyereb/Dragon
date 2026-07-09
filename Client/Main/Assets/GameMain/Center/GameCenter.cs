@@ -35,6 +35,7 @@ namespace Dragon.Library
         public static GameUIManager GameUIManager = null;
         public static PopupManager PopupManager = null;
         public static ToastManager ToastManager = null;
+        public static DebugLogManager DebugLogManager = null;
         public static UIQueueManager UIQueueManager = null;
         public static PoolManager PoolManager = null;
         public static SchedulerManager SchedulerManager = null;
@@ -163,6 +164,8 @@ namespace Dragon.Library
             PopupManager = PopupManager.Instance;
             ToastManager = ToastManager.Instance;
             UIQueueManager = UIQueueManager.Instance;
+            DebugLogManager = DebugLogManager.Instance;
+            DebugLogManager.Init();
             PoolManager = PoolManager.Instance;
             SchedulerManager = SchedulerManager.Instance;
 
@@ -206,6 +209,7 @@ namespace Dragon.Library
             InputManager.Shutdown();
             SchedulerManager.Shutdown();
             PoolManager.ClearAll();
+            DebugLogManager.Shutdown();
         }
         #endregion
 

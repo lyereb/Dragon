@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Dragon.GameUI;
 using UnityEngine;
 
-namespace Dragon.GameUI
+namespace Dragon.Library
 {
     /// <summary>
     /// 全局 Debug 日志缓冲，启动后常驻收集 Unity Console 输出。
+    /// 需在 <see cref="GameCenter"/> 中 Init / Shutdown；弹窗依赖 Addressables 键 <see cref="PopupAddress"/>。
     /// </summary>
     public class DebugLogManager
     {
@@ -20,9 +22,6 @@ namespace Dragon.GameUI
         private readonly List<string> _lines = new List<string>();
         private int _maxLines = DefaultMaxLines;
         private bool _initialized;
-
-        /// <summary>为 true 时不收集 Warning 日志。</summary>
-        public bool IgnoreWarnings { get; set; } = true;
 
         public event Action Changed;
 
@@ -87,16 +86,11 @@ namespace Dragon.GameUI
 
         public void OpenPopup()
         {
-            PopupManager.Instance.OpenPopup<PopupDebugLogData>(PopupAddress, new PopupDebugLogData());
+            GameCenter.PopupManager.OpenPopup<PopupDebugLogData>(PopupAddress, new PopupDebugLogData());
         }
 
         private void OnLogMessageReceived(string condition, string stackTrace, LogType type)
         {
-            if (IgnoreWarnings && type == LogType.Warning)
-            {
-                return;
-            }
-
             AddLine($"{GetLogPrefix(type)} {condition}");
         }
 
