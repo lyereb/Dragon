@@ -29,8 +29,14 @@ MonoBehaviour:
     m_SerializedLabels:
     - Audio
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: d6e2654263b864c4b9ae3a0064f2e703
-    m_Address: sfx_hit
+  - m_GUID: c9ab9350875918d4693da3669fc876ac
+    m_Address: sfx_ui_btn_release
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Audio
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fd7bfeaaefd14d34ca173dd582df64f7
+    m_Address: sfx_ui_window_open
     m_ReadOnly: 0
     m_SerializedLabels:
     - Audio

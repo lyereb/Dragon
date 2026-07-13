@@ -1,4 +1,5 @@
 using DG.Tweening;
+using Dragon.Audio;
 using UnityEngine;
 
 namespace Dragon.GameUI
@@ -17,10 +18,26 @@ namespace Dragon.GameUI
     [RequireComponent(typeof(RectTransform))]
     public class UIDisplayEffect : MonoBehaviour
     {
+        private const string DefaultEnableSfxAddress = "sfx_ui_window_open";
+        private const string DefaultDisableSfxAddress = "";
+
+        #region Animation
+
         [SerializeField] private UIDisplayEffectType _effectType = UIDisplayEffectType.ScaleIn;
         [SerializeField] private float _duration = 0.25f;
         [SerializeField] private bool _playOnEnable = true;
         [SerializeField] private bool _useUnscaledTime = true;
+
+        #endregion
+
+        #region Sfx
+
+        [SerializeField] private bool _useDefaultSfx;
+        [SerializeField] private string _enableSfxAddress;
+        [SerializeField] private string _disableSfxAddress;
+        [SerializeField] [Range(0f, 1f)] private float _sfxVolume = 1f;
+
+        #endregion
 
         private RectTransform _rectTransform;
         private Vector3 _defaultScale;
@@ -34,6 +51,8 @@ namespace Dragon.GameUI
 
         private void OnEnable()
         {
+            PlayEnableSfx();
+
             if (_playOnEnable)
             {
                 Play();
@@ -42,6 +61,7 @@ namespace Dragon.GameUI
 
         private void OnDisable()
         {
+            PlayDisableSfx();
             Stop();
         }
 
@@ -100,6 +120,28 @@ namespace Dragon.GameUI
                 .SetEase(Ease.OutBack, 1.2f)
                 .SetUpdate(_useUnscaledTime)
                 .SetLink(gameObject);
+        }
+
+        private void PlayEnableSfx()
+        {
+            string address = _useDefaultSfx ? DefaultEnableSfxAddress : _enableSfxAddress;
+            if (string.IsNullOrEmpty(address))
+            {
+                return;
+            }
+
+            AudioManager.Instance.PlaySfx(address, _sfxVolume);
+        }
+
+        private void PlayDisableSfx()
+        {
+            string address = _useDefaultSfx ? DefaultDisableSfxAddress : _disableSfxAddress;
+            if (string.IsNullOrEmpty(address))
+            {
+                return;
+            }
+
+            AudioManager.Instance.PlaySfx(address, _sfxVolume);
         }
     }
 }
