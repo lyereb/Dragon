@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -64,6 +66,8 @@ namespace Dragon.Audio
             public AsyncOperationHandle<AudioClip>[] ClipHandles;
             public string[] Addresses;
             public float[] RelativeVolumes;
+            public bool[] PreservePlaybackPositions;
+            public Dictionary<string, float> PlaybackPositions;
             public int ActiveIndex = -1;
             public int OpId;
             public CancellationTokenSource FadeCts;
@@ -187,14 +191,16 @@ namespace Dragon.Audio
         }
 
         public void PlayBgm(string address, bool loop = true, float volume = 1f, float? fadeInDuration = null,
-            float? fadeOutDuration = null)
+            float? fadeOutDuration = null, bool preservePlaybackPosition = false)
         {
-            PlayBgmAsync(address, loop, volume, fadeInDuration, fadeOutDuration, CancellationToken.None).Forget();
+            PlayBgmAsync(address, loop, volume, fadeInDuration, fadeOutDuration, CancellationToken.None,
+                preservePlaybackPosition).Forget();
         }
 
         public async UniTask PlayBgmAsync(string address, bool loop = true, float volume = 1f, float? fadeInDuration = null,
             float? fadeOutDuration = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool preservePlaybackPosition = false)
         {
             if (string.IsNullOrEmpty(address))
             {
@@ -207,7 +213,8 @@ namespace Dragon.Audio
                 Debug.LogWarning("[AudioManager] 未初始化，请先调用 Init()");
                 return;
             }
-            await PlayMusicAsync(_bgmGroup, address, loop, volume, fadeInDuration, fadeOutDuration, cancellationToken);
+            await PlayMusicAsync(_bgmGroup, address, loop, volume, fadeInDuration, fadeOutDuration, cancellationToken,
+                preservePlaybackPosition);
         }
 
         public void StopAmbient()
@@ -241,7 +248,8 @@ namespace Dragon.Audio
                 Debug.LogWarning("[AudioManager] 未初始化，请先调用 Init()");
                 return;
             }
-            await PlayMusicAsync(_ambientGroup, address, loop, volume, fadeInDuration, fadeOutDuration, cancellationToken);
+            await PlayMusicAsync(_ambientGroup, address, loop, volume, fadeInDuration, fadeOutDuration, cancellationToken,
+                preservePlaybackPosition: false);
         }
 
         public void PlaySfx(string address, float volume = 1f)
@@ -356,7 +364,8 @@ namespace Dragon.Audio
         }
 
         private async UniTask PlayMusicAsync(MusicChannelGroup group, string address, bool loop, float volume,
-            float? fadeInDuration, float? fadeOutDuration, CancellationToken cancellationToken)
+            float? fadeInDuration, float? fadeOutDuration, CancellationToken cancellationToken,
+            bool preservePlaybackPosition)
         {
             if (group == null || group.Sources == null)
             {
@@ -368,6 +377,11 @@ namespace Dragon.Audio
                 group.Sources[group.ActiveIndex] != null &&
                 group.Sources[group.ActiveIndex].isPlaying)
             {
+                group.PreservePlaybackPositions[group.ActiveIndex] = preservePlaybackPosition;
+                if (!preservePlaybackPosition)
+                {
+                    group.PlaybackPositions.Remove(address);
+                }
                 return;
             }
 
@@ -401,18 +415,21 @@ namespace Dragon.Audio
 
                 var oldIndex = group.ActiveIndex;
                 var targetSource = group.Sources[nextIndex];
+                SavePlaybackPosition(group, nextIndex);
                 ReleaseHandle(group, nextIndex);
                 targetSource.Stop();
                 targetSource.clip = handle.Result;
                 targetSource.loop = loop;
                 group.ClipHandles[nextIndex] = handle;
                 group.Addresses[nextIndex] = address;
+                group.PreservePlaybackPositions[nextIndex] = preservePlaybackPosition;
                 var targetRelativeVolume = Mathf.Clamp01(volume);
                 group.RelativeVolumes[nextIndex] = targetRelativeVolume;
                 targetSource.volume = 0f;
+                ApplySavedPlaybackPosition(group, targetSource, address, preservePlaybackPosition);
                 targetSource.Play();
 
-                CancelAndDisposeFade(ref group.FadeCts);
+                CancelActiveFade(group);
                 group.FadeCts = new CancellationTokenSource();
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(group.FadeCts.Token, cancellationToken);
                 var ct = linked.Token;
@@ -423,15 +440,26 @@ namespace Dragon.Audio
                     var fadeInTask = FadeSourceVolumeAsync(group.Sources[nextIndex], targetVolume, resolvedFadeInDuration, ct);
                     var fadeOutTask = FadeSourceVolumeAsync(group.Sources[oldIndex], 0f, resolvedFadeOutDuration, ct);
                     await UniTask.WhenAll(fadeInTask, fadeOutTask);
+                    if (opId != group.OpId)
+                    {
+                        return;
+                    }
+
+                    SavePlaybackPosition(group, oldIndex);
                     group.Sources[oldIndex].Stop();
                     group.Sources[oldIndex].clip = null;
                     group.RelativeVolumes[oldIndex] = 0f;
                     group.Addresses[oldIndex] = null;
+                    group.PreservePlaybackPositions[oldIndex] = false;
                     ReleaseHandle(group, oldIndex);
                 }
                 else
                 {
                     await FadeSourceVolumeAsync(group.Sources[nextIndex], targetVolume, resolvedFadeInDuration, ct);
+                    if (opId != group.OpId)
+                    {
+                        return;
+                    }
                 }
 
                 group.ActiveIndex = nextIndex;
@@ -453,7 +481,7 @@ namespace Dragon.Audio
             }
         }
 
-        private async UniTask FadeSourceVolumeAsync(AudioSource source, float targetVolume, float duration,
+        private static async UniTask FadeSourceVolumeAsync(AudioSource source, float targetVolume, float duration,
             CancellationToken externalCt)
         {
             if (source == null)
@@ -461,34 +489,68 @@ namespace Dragon.Audio
                 return;
             }
 
+            DOTween.Kill(source);
+
+            var resolvedVolume = Mathf.Max(0f, targetVolume);
             if (duration <= 0f)
             {
-                source.volume = Mathf.Max(0f, targetVolume);
+                source.volume = resolvedVolume;
                 return;
             }
 
-            var ct = externalCt;
-            var startVolume = source.volume;
-            var safeDuration = Mathf.Max(0.01f, duration);
-            var elapsed = 0f;
-
             try
             {
-                while (elapsed < safeDuration)
-                {
-                    ct.ThrowIfCancellationRequested();
-                    elapsed += Time.unscaledDeltaTime;
-                    var t = Mathf.Clamp01(elapsed / safeDuration);
-                    source.volume = Mathf.Lerp(startVolume, targetVolume, t);
-                    await UniTask.Yield(PlayerLoopTiming.Update, ct);
-                }
-
-                source.volume = Mathf.Max(0f, targetVolume);
+                var tween = source
+                    .DOFade(resolvedVolume, Mathf.Max(0.01f, duration))
+                    .SetUpdate(true);
+                await tween.AsyncWaitForCompletion()
+                    .AsUniTask()
+                    .AttachExternalCancellation(externalCt);
+                source.volume = resolvedVolume;
             }
             catch (OperationCanceledException)
             {
                 // 淡化被新请求打断属于正常情况
             }
+        }
+
+        private static void ApplySavedPlaybackPosition(MusicChannelGroup group, AudioSource source, string address,
+            bool preservePlaybackPosition)
+        {
+            if (!preservePlaybackPosition)
+            {
+                group.PlaybackPositions.Remove(address);
+                return;
+            }
+
+            if (source?.clip == null ||
+                !group.PlaybackPositions.TryGetValue(address, out float playbackPosition) ||
+                source.clip.length <= 0f)
+            {
+                return;
+            }
+
+            source.time = Mathf.Repeat(playbackPosition, source.clip.length);
+        }
+
+        private static void SavePlaybackPosition(MusicChannelGroup group, int index)
+        {
+            if (group?.Sources == null ||
+                index < 0 ||
+                index >= group.Sources.Length ||
+                !group.PreservePlaybackPositions[index] ||
+                string.IsNullOrEmpty(group.Addresses[index]))
+            {
+                return;
+            }
+
+            AudioSource source = group.Sources[index];
+            if (source?.clip == null)
+            {
+                return;
+            }
+
+            group.PlaybackPositions[group.Addresses[index]] = source.time;
         }
 
         private async UniTask StopMusicInternalAsync(MusicChannelGroup group, float fadeOutDuration, CancellationToken cancellationToken)
@@ -502,7 +564,7 @@ namespace Dragon.Audio
             var index = group.ActiveIndex;
             var source = group.Sources[index];
 
-            CancelAndDisposeFade(ref group.FadeCts);
+            CancelActiveFade(group);
             group.FadeCts = new CancellationTokenSource();
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(group.FadeCts.Token, cancellationToken);
             var ct = linked.Token;
@@ -510,12 +572,14 @@ namespace Dragon.Audio
             if (source != null && source.isPlaying)
             {
                 await FadeSourceVolumeAsync(source, 0f, Mathf.Max(0f, fadeOutDuration), ct);
+                SavePlaybackPosition(group, index);
                 source.Stop();
                 source.clip = null;
             }
 
             group.RelativeVolumes[index] = 0f;
             group.Addresses[index] = null;
+            group.PreservePlaybackPositions[index] = false;
             ReleaseHandle(group, index);
             group.ActiveIndex = -1;
         }
@@ -550,6 +614,8 @@ namespace Dragon.Audio
                 ClipHandles = new AsyncOperationHandle<AudioClip>[CrossFadeSourceCount],
                 Addresses = new string[CrossFadeSourceCount],
                 RelativeVolumes = new float[CrossFadeSourceCount],
+                PreservePlaybackPositions = new bool[CrossFadeSourceCount],
+                PlaybackPositions = new Dictionary<string, float>(),
                 ActiveIndex = -1,
                 OpId = 0,
                 FadeCts = null
@@ -565,7 +631,7 @@ namespace Dragon.Audio
 
             group.OpId++;
             group.ActiveIndex = -1;
-            CancelAndDisposeFade(ref group.FadeCts);
+            CancelActiveFade(group);
 
             for (var i = 0; i < group.Sources.Length; i++)
             {
@@ -576,8 +642,11 @@ namespace Dragon.Audio
                 }
                 group.RelativeVolumes[i] = 0f;
                 group.Addresses[i] = null;
+                group.PreservePlaybackPositions[i] = false;
                 ReleaseHandle(group, i);
             }
+
+            group.PlaybackPositions.Clear();
         }
 
         private void ReleaseHandle(MusicChannelGroup group, int index)
@@ -591,6 +660,28 @@ namespace Dragon.Audio
             {
                 Addressables.Release(group.ClipHandles[index]);
                 group.ClipHandles[index] = default;
+            }
+        }
+
+        private static void CancelActiveFade(MusicChannelGroup group)
+        {
+            KillFadeTweensOnGroup(group);
+            CancelAndDisposeFade(ref group.FadeCts);
+        }
+
+        private static void KillFadeTweensOnGroup(MusicChannelGroup group)
+        {
+            if (group?.Sources == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < group.Sources.Length; i++)
+            {
+                if (group.Sources[i] != null)
+                {
+                    DOTween.Kill(group.Sources[i]);
+                }
             }
         }
 
