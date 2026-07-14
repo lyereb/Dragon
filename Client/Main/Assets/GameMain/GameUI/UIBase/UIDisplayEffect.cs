@@ -39,7 +39,7 @@ namespace Dragon.GameUI
         [SerializeField] private float _duration = 0.25f;
         [SerializeField] private bool _playOnEnable = true;
         [SerializeField] private UIDisplayExitEffectType _exitEffectType = UIDisplayExitEffectType.None;
-        [SerializeField] private float _exitDuration = 0.1f;
+        [SerializeField] private float _exitDuration = 0.2f;
         [SerializeField] private bool _useUnscaledTime = true;
 
         #endregion
@@ -241,7 +241,7 @@ namespace Dragon.GameUI
 
             _playTween = _canvasGroup
                 .DOFade(0f, duration)
-                .SetEase(Ease.InQuad)
+                .SetEase(Ease.OutQuad)
                 .SetUpdate(_useUnscaledTime)
                 .SetLink(gameObject)
                 .OnComplete(() =>
