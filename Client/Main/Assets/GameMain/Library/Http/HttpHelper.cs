@@ -81,6 +81,36 @@ namespace Dragon.Library
             return SendAsync(request, options);
         }
 
+        /// <summary>
+        /// POST application/x-www-form-urlencoded form fields.
+        /// </summary>
+        public static UniTask<HttpResponse> PostUrlEncodedFormAsync(
+            string url,
+            Dictionary<string, string> fields,
+            HttpRequestOptions options = null)
+        {
+            if (fields == null)
+            {
+                throw new ArgumentNullException(nameof(fields));
+            }
+
+            var bodyBuilder = new StringBuilder();
+            foreach (KeyValuePair<string, string> field in fields)
+            {
+                if (bodyBuilder.Length > 0)
+                {
+                    bodyBuilder.Append('&');
+                }
+
+                bodyBuilder.Append(UnityWebRequest.EscapeURL(field.Key));
+                bodyBuilder.Append('=');
+                bodyBuilder.Append(UnityWebRequest.EscapeURL(field.Value ?? string.Empty));
+            }
+
+            byte[] body = Encoding.UTF8.GetBytes(bodyBuilder.ToString());
+            return PostAsync(url, body, "application/x-www-form-urlencoded", options);
+        }
+
         public static UniTask<HttpResponse> PutAsync(
             string url,
             byte[] body,
