@@ -1,15 +1,21 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Dragon.GameUI;
 using UnityEngine;
 
 public class PopupBase : MonoBehaviour
 {
     public PopupBaseData CurrentData { get; private set; }
+    private bool _isClosing;
+    private bool _isClosed;
+
     // 对外统一入口：实例化预制体后由管理器调用。
     public void Open(PopupBaseData data)
     {
         CurrentData = data;
+        _isClosing = false;
+        _isClosed = false;
         gameObject.SetActive(true);
         OnOpen(data);
     }
@@ -22,6 +28,57 @@ public class PopupBase : MonoBehaviour
     // 对外统一关闭入口。
     public void Close()
     {
+        if (_isClosing || _isClosed)
+        {
+            return;
+        }
+
+        _isClosing = true;
+
+        UIDisplayEffect[] displayEffects = GetComponentsInChildren<UIDisplayEffect>(true);
+        int remainingExitEffectCount = 0;
+        for (int i = 0; i < displayEffects.Length; i++)
+        {
+            UIDisplayEffect displayEffect = displayEffects[i];
+            if (displayEffect != null && displayEffect.isActiveAndEnabled && displayEffect.HasExitEffect)
+            {
+                remainingExitEffectCount++;
+            }
+        }
+
+        if (remainingExitEffectCount == 0)
+        {
+            FinishClose();
+            return;
+        }
+
+        for (int i = 0; i < displayEffects.Length; i++)
+        {
+            UIDisplayEffect displayEffect = displayEffects[i];
+            if (displayEffect == null || !displayEffect.isActiveAndEnabled || !displayEffect.HasExitEffect)
+            {
+                continue;
+            }
+
+            displayEffect.PlayExit(() =>
+            {
+                remainingExitEffectCount--;
+                if (remainingExitEffectCount == 0)
+                {
+                    FinishClose();
+                }
+            });
+        }
+    }
+
+    private void FinishClose()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
         OnClose();
         InvokeCloseCallback();
         Destroy(gameObject);
