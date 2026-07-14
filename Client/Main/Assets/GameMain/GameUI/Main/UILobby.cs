@@ -37,4 +37,9 @@ public class UILobby : UIBase<UILobbyData>
             LoadingTime = 1f
         });
     }
+
+    public void OnOpenDebugLog()
+    {
+        GameCenter.DebugLogManager.OpenPopup();
+    }
 }

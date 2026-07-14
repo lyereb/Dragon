@@ -40,13 +40,25 @@ namespace Dragon.GameUI
             popup.transform.SetAsLastSibling();
         }
 
+        internal void RemoveFromCache(string popupName)
+        {
+            if (string.IsNullOrEmpty(popupName))
+            {
+                return;
+            }
+
+            _popupCache.Remove(popupName);
+        }
+
         public void OpenPopup<TData>(string popupName, TData data, System.Action<PopupBase> onOpened = null) where TData : PopupBaseData
         {
             if (_popupCache.TryGetValue(popupName, out PopupBase cachedPopup))
             {
                 if (cachedPopup != null)
                 {
+                    data.popupName = popupName;
                     BringPopupToTop(cachedPopup);
+                    cachedPopup.Open(data);
                     onOpened?.Invoke(cachedPopup);
                     return;
                 }

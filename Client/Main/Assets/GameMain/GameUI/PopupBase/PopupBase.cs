@@ -80,6 +80,13 @@ public class PopupBase : MonoBehaviour
 
         _isClosed = true;
         OnClose();
+
+        string popupName = CurrentData?.popupName;
+        if (!string.IsNullOrEmpty(popupName))
+        {
+            PopupManager.Instance.RemoveFromCache(popupName);
+        }
+
         InvokeCloseCallback();
         Destroy(gameObject);
     }
