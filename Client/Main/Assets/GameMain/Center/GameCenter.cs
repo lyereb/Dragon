@@ -1,5 +1,3 @@
-using System;
-using System.Collections;
 using UnityEngine;
 using Dragon.Logic;
 using Dragon.Resource;
@@ -67,14 +65,7 @@ namespace Dragon.Library
         public static void Initialize()
         {
             _isInitialized = false;
-            CoroutinePool.AddTask(CoreInitialize(
-            () =>
-            {
-                LogicInitialize();
-                _isInitialized = true;
-                ResetGameSpeedRate(); //初始化游戏速度
-                StateManager.ChangeState(GameStateCode.Main);
-            }));
+            CoreInitializeAsync().Forget();
         }
         //卸载
         public static void Uninitialize()
@@ -172,11 +163,11 @@ namespace Dragon.Library
             Debug.Log("NewCoreSystem Finished!!");
         }
         //游戏中心进行初始化处理
-        private static IEnumerator CoreInitialize(Action onCoreInitFinished)
+        private static async UniTask CoreInitializeAsync()
         {
             Debug.Log("GameCenter Start CoreInitialize!");
             //初始化游戏状态管理器
-            yield return null;
+            await UniTask.Yield();
             StateManager.Initialize();
             ResourceManager.Initialize();
             InputManager.Init();
@@ -184,11 +175,11 @@ namespace Dragon.Library
             // 异步初始化配置管理器
             Debug.Log("开始预加载配置资源...");
             ConfigManager.OnLoadProgress = null;
-            yield return ConfigManager.Init().ToCoroutine();
+            await ConfigManager.Init();
             Debug.Log("游戏配置加载完成");
 
             Debug.Log("开始预加载基础资源...");
-            yield return ResourcePreloadService.PreloadBootstrapResourcesAsync(null).ToCoroutine();
+            await ResourcePreloadService.PreloadBootstrapResourcesAsync(null);
             Debug.Log("基础资源预加载完成");
 
             Debug.Log("开始加载用户数据");
@@ -197,8 +188,11 @@ namespace Dragon.Library
             SchedulerManager.Init();
             Debug.Log("用户数据加载完成");
 
-            yield return null;
-            onCoreInitFinished();
+            await UniTask.Yield();
+            LogicInitialize();
+            _isInitialized = true;
+            ResetGameSpeedRate(); //初始化游戏速度
+            StateManager.ChangeState(GameStateCode.Main);
             Debug.Log("GameCenter End CoreInitialize!");
         }
         //卸载
