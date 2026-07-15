@@ -151,11 +151,7 @@ public partial class Entity : FSMHostBase<EntityStateCode>
     /// </summary>
     protected override void OnStateChangeAfter(EntityStateCode code, bool isSuccess)
     {
-        if (!isSuccess)
-        {
-            Debug.LogWarning($"{GetType().Name} change to {code} failed, current:{GetCurrentStateName()}");
-            return;
-        }
+
     }
 
     protected virtual bool OnInitAfter()
