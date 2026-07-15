@@ -11,18 +11,14 @@ public abstract class EntityStateBase : BaseState
 
     public void ChangeToState(EntityStateCode state, object obj = null)
     {
-        bool result = FSM.TransToState((int)state, obj);
+        // 统一走宿主 ChangeToState，以触发 OnStateChangeBefore/After
+        Host.ChangeToState(state, obj);
     }
 
     protected override bool OnIsCanTransTo(int id)
     {
         //如果状态不同
         return Id != id;
-    }
-
-    protected override bool OnIsValid()
-    {
-        return true;
     }
 
     protected override void OnDestroy()

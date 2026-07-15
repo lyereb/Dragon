@@ -135,6 +135,29 @@ public partial class Entity : FSMHostBase<EntityStateCode>
         return true;
     }
 
+    /// <summary>
+    /// 切状态前。所有 ChangeToState 都会经过这里（含状态内部发起的切换）。
+    /// 适合：记录旧状态、埋点预热、同步表现层准备。
+    /// 注意：这里不要再调 ChangeToState，避免嵌套切换。
+    /// </summary>
+    protected override void OnStateChangeBefore(EntityStateCode code)
+    {
+        
+    }
+
+    /// <summary>
+    /// 切状态后。isSuccess 为 false 表示目标未注册或当前状态不允许切换。
+    /// 适合：失败告警、成功后刷新动画/UI、广播事件。
+    /// </summary>
+    protected override void OnStateChangeAfter(EntityStateCode code, bool isSuccess)
+    {
+        if (!isSuccess)
+        {
+            Debug.LogWarning($"{GetType().Name} change to {code} failed, current:{GetCurrentStateName()}");
+            return;
+        }
+    }
+
     protected virtual bool OnInitAfter()
     {
         return true;

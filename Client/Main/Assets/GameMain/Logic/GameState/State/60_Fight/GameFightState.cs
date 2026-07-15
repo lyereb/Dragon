@@ -24,21 +24,19 @@ namespace Dragon.Logic
             return GameStateCode.Fight.ToString();
         }
 
-        protected override bool OnEnter(object data)
+        protected override void OnEnter(object data)
         {
             InputManager.Instance.SetInputContext(InputManager.InputContextState.Battle);
             _ = GameUIManager.Instance.OpenMainUI<UIFight, UIFightData>("main_fight", new UIFightData());
-            return true;
         }
 
-        protected override bool OnExit()
+        protected override void OnExit()
         {
-            return true;
         }
 
-        protected override bool OnUpdate(float deltaTime)
+        protected override void OnUpdate(float deltaTime)
         {
-            return base.OnUpdate(deltaTime);
+            base.OnUpdate(deltaTime);
         }
 
         protected override bool OnIsCanTransTo(int id)
@@ -46,9 +44,8 @@ namespace Dragon.Logic
             return true;
         }
 
-        protected override bool OnTimeOut()
+        protected override void OnTimeOut()
         {
-            return true;
         }
         #endregion
     }

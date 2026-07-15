@@ -13,23 +13,19 @@ public class InteractableBirthState : EntityStateBase
         return EntityStateCode.Birth.ToString();
     }
 
-    protected override bool OnEnter(object data)
+    protected override void OnEnter(object data)
     {
-        return true;
     }
 
-    protected override bool OnExit()
+    protected override void OnExit()
     {
-        return true;
     }
 
-    protected override bool OnUpdate(float dt)
+    protected override void OnUpdate(float dt)
     {
-        return true;
     }
 
-    protected override bool OnTimeOut()
+    protected override void OnTimeOut()
     {
-        return true;
     }
 }

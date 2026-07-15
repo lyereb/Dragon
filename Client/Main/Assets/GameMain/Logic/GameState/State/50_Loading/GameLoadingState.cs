@@ -25,35 +25,31 @@ namespace Dragon.Logic
         }
 
 
-        protected override bool OnEnter(object data)
+        protected override void OnEnter(object data)
         {
             InputManager.Instance.SetInputContext(InputManager.InputContextState.Disabled);
             _param = (GameLoadingParam)data;
 
             _ = GameUIManager.Instance.OpenMainUI<UILoading, UILoadingData>("main_loading", new UILoadingData() { LoadingText = "Loading..." });
             TimeOut = _param.LoadingTime;
-            return true;
         }
 
-        protected override bool OnExit()
+        protected override void OnExit()
         {
-
-            return true;
         }
 
-        protected override bool OnUpdate(float deltaTime)
+        protected override void OnUpdate(float deltaTime)
         {
-            return base.OnUpdate(deltaTime);
+            base.OnUpdate(deltaTime);
         }
 
         protected override bool OnIsCanTransTo(int id)
         {
             return true;
         }
-        protected override bool OnTimeOut()
+        protected override void OnTimeOut()
         {
             ChangeToState(_param.TargetState);
-            return true;
         }
         #endregion
 

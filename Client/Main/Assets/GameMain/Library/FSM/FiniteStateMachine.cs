@@ -83,36 +83,30 @@ namespace Dragon.Library
         public bool TransToState(int destId, object p)
         {
             //如果没有找到状态,就直接返回错误
-            if (!_allState.ContainsKey(destId)) {
+            if (!_allState.TryGetValue(destId, out IState next))
+            {
                 return false;
             }
 
-            bool canTrans = true;
             if (_currentState != null)
             {
-                canTrans = _currentState.IsCanTransTo(destId);
-                if (canTrans)
+                if (!_currentState.IsCanTransTo(destId))
                 {
-                    _currentState.Exit();
-                    _prevState = _currentState;
-                    _currentState = null;
+                    return false;
                 }
+
+                _currentState.Exit();
+                _prevState = _currentState;
+                _currentState = null;
             }
-            else {
+            else
+            {
                 _prevState = null;
             }
 
-            if (canTrans)
-            {
-                IState state;
-                if (_allState.TryGetValue(destId, out state))
-                {   
-                    _currentState = state;
-                    _currentState.Enter(p);
-                    return true;
-                }
-            }
-            return false;
+            _currentState = next;
+            _currentState.Enter(p);
+            return true;
         }
 
         public void Update(float dt)

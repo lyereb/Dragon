@@ -11,28 +11,23 @@ public class CharacterIdleState : EntityStateBase
         return EntityStateCode.Idle.ToString();
     }
 
-    protected override bool OnEnter(object data)
+    protected override void OnEnter(object data)
     {
         UnityEngine.Debug.Log("Enter CharacterIdleState");
-        return true;
     }
 
-    protected override bool OnExit()
+    protected override void OnExit()
     {
-        return true;
     }
 
 
-    protected override bool OnUpdate(float dt)
+    protected override void OnUpdate(float dt)
     {
-        return true;
     }
 
-    protected override bool OnTimeOut()
+    protected override void OnTimeOut()
     {
-        return true;
     }
 
 
 }
-

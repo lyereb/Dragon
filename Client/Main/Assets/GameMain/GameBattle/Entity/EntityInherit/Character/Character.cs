@@ -82,7 +82,7 @@ public class Character : Entity, IAttackable
             CurrentHP = 0f;
             IsDead = true;
             // 进入死亡状态（由 FSM 驱动后续死亡流程）
-            FSM.TransToState((int)EntityStateCode.Death, null);
+            ChangeToState(EntityStateCode.Death);
         }
     }
 }

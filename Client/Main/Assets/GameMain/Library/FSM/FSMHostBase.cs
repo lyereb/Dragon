@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.CompilerServices;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Dragon.Library
@@ -6,7 +8,7 @@ namespace Dragon.Library
     /// <summary>
     /// 状态机主机基类
     /// </summary>
-    /// <typeparam name="T">状态枚举类型</typeparam>
+    /// <typeparam name="T">状态枚举类型（约定底层为 int）</typeparam>
     public class FSMHostBase<T> where T : unmanaged, Enum
     {
         protected FiniteStateMachine _fsm = null;
@@ -44,7 +46,7 @@ namespace Dragon.Library
             if (_fsm != null)
             {
                 var cur = _fsm.CurrentState;
-                if (cur != null && cur.IsCanTransTo(Convert.ToInt32(code)))
+                if (cur != null && cur.IsCanTransTo(ToStateId(code)))
                 {
                     return true;
                 }
@@ -56,7 +58,7 @@ namespace Dragon.Library
         {
             if (_fsm != null && _fsm.CurrentState != null)
             {
-                return (_fsm.CurrentState.Id == Convert.ToInt32(code));
+                return (_fsm.CurrentState.Id == ToStateId(code));
             }
             return false;
         }
@@ -66,9 +68,10 @@ namespace Dragon.Library
         {
             if (_fsm != null && _fsm.CurrentState != null)
             {
+                int currentId = _fsm.CurrentState.Id;
                 for (int i = 0; i < codes.Length; i++)
                 {
-                    if (_fsm.CurrentState.Id == Convert.ToInt32(codes[i]))
+                    if (currentId == ToStateId(codes[i]))
                     {
                         return true;
                     }
@@ -82,7 +85,7 @@ namespace Dragon.Library
             if (_fsm != null)
             {
                 OnStateChangeBefore(code);
-                bool result = _fsm.TransToState(Convert.ToInt32(code), data);
+                bool result = _fsm.TransToState(ToStateId(code), data);
                 OnStateChangeAfter(code, result);
                 return result;
             }
@@ -96,6 +99,12 @@ namespace Dragon.Library
                 return _fsm.CurrentState.Name;
             }
             return "null";
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ToStateId(T code)
+        {
+            return UnsafeUtility.EnumToInt(code);
         }
 
         protected virtual bool OnFSMSetup()

@@ -13,17 +13,14 @@
         //状态机
         FiniteStateMachine FSM { get; set; }
         //进入状态
-        bool Enter(object data);
+        void Enter(object data);
         //退出状态
-        bool Exit();
+        void Exit();
         //更新
-        bool Update(float dt);
+        void Update(float dt);
 
         //尝试切换状态
         bool IsCanTransTo(int id);
-
-        //状态是否有效
-        bool IsValid();
 
         //销毁
         void Destroy();

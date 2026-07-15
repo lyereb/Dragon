@@ -24,29 +24,25 @@ namespace Dragon.Logic
         }
 
 
-        protected override bool OnEnter(object data)
+        protected override void OnEnter(object data)
         {
-            return true;
         }
 
-        protected override bool OnExit()
+        protected override void OnExit()
         {
-            return true;
         }
 
-        protected override bool OnUpdate(float deltaTime)
+        protected override void OnUpdate(float deltaTime)
         {
-            return base.OnUpdate(deltaTime);
+            base.OnUpdate(deltaTime);
         }
 
         protected override bool OnIsCanTransTo(int id)
         {
             return true;
         }
-        protected override bool OnTimeOut()
+        protected override void OnTimeOut()
         {
-
-            return true;
         }
 
         #endregion

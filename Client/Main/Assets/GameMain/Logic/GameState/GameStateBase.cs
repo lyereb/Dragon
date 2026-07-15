@@ -8,18 +8,12 @@ namespace Dragon.Logic
         {
             FSM.TransToState((int)state, obj);
         }
-        protected override bool OnUpdate(float dt)
+        protected override void OnUpdate(float dt)
         {
-            return true;
         }
         protected override void OnDestroy()
         {
             //销毁状态
-        }
-
-        protected override bool OnIsValid()
-        {
-            return true;
         }
     }
 }

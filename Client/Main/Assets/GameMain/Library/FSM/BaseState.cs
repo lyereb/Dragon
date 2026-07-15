@@ -54,17 +54,17 @@ namespace Dragon.Library
 
         public FiniteStateMachine FSM { get; set; }
 
-        public bool Enter(object data)
+        public void Enter(object data)
         {
             _data = data;
             if (IsShowLog) Debug.Log($"{FSM}.Enter:{Name}[{Id}],");
-            return OnEnter(data);
+            OnEnter(data);
         }
 
-        public bool Exit()
+        public void Exit()
         {
             if (IsShowLog) Debug.Log($"{FSM}.Exit:{Name}[{Id}]");
-            return OnExit();
+            OnExit();
         }
 
         public bool IsCanTransTo(int destId)
@@ -73,14 +73,8 @@ namespace Dragon.Library
             if (IsShowLog) Debug.Log($"{FSM}.IsCanTransTo:{Name}[{Id}]=>{destId}:::::result:{result}");
             return result;
         }
-        public bool IsValid()
-        {
-            var result = OnIsValid();
-            if (IsShowLog) Debug.Log($"{FSM}.IsValid:{Name}[{Id}]:::::result:{result}");
-            return result;
-        }
 
-        public bool Update(float dt)
+        public void Update(float dt)
         {
             if (_timeOut >= 0)
             {
@@ -89,10 +83,11 @@ namespace Dragon.Library
                 {
                     _elapseTime = 0;
                     _timeOut = -1;
-                    return OnTimeOut();
+                    OnTimeOut();
+                    return;
                 }
             }
-            return OnUpdate(dt);
+            OnUpdate(dt);
         }
 
         public void Destroy()
@@ -102,12 +97,11 @@ namespace Dragon.Library
 
         protected abstract int OnStateId();
         protected abstract string OnStateName();
-        protected abstract bool OnEnter(object data);
-        protected abstract bool OnExit();
+        protected abstract void OnEnter(object data);
+        protected abstract void OnExit();
         protected abstract bool OnIsCanTransTo(int id);
-        protected abstract bool OnIsValid();
-        protected abstract bool OnUpdate(float dt);
-        protected abstract bool OnTimeOut();
+        protected abstract void OnUpdate(float dt);
+        protected abstract void OnTimeOut();
         protected abstract void OnDestroy();
     }
 }
