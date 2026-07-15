@@ -17,8 +17,6 @@ namespace Dragon.Library
         //是否已经初始化完毕
         private static bool _isInitialized = false;
         public static bool IsInitialized { get { return _isInitialized; } }
-        //是否挂起
-        public static bool IsFocused { get; set; }
         #endregion
 
         #region//游戏中内核逻辑管理器

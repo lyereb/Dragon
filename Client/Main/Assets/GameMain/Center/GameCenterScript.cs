@@ -78,30 +78,6 @@ namespace Dragon.Library
             }
         }
 
-        void OnApplicationPause(bool paused)
-        {
-            if (_isCreated)
-            {
-                if (!paused)
-                {
-
-                }
-                else
-                {
-
-                }
-            }
-        }
-
-        void OnApplicationFocus(bool focus)
-        {
-            if (_isCreated)
-            {
-                GameCenter.IsFocused = focus;
-            }
-        }
-
-
         void DoApplicationQuit()
         {
             if (_isCreated)
