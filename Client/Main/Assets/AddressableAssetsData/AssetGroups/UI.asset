@@ -26,7 +26,8 @@ MonoBehaviour:
   - m_GUID: 1f7b2e9d4c8a4567890abcdef1234567
     m_Address: popup_debug_log
     m_ReadOnly: 0
-    m_SerializedLabels: []
+    m_SerializedLabels:
+    - UI
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 262f1f5db57303147bb4436f64f18ac3
     m_Address: ui_toast

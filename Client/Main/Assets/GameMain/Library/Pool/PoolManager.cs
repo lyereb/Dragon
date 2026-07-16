@@ -85,41 +85,37 @@ namespace Dragon.Library
         /// 池 ID 与传入的 <paramref name="addressablePath"/> 一致，后续 <see cref="Get"/> / <see cref="Release"/> 均使用该路径字符串（与配置表、Addressables 寻址一致）。
         /// </summary>
         /// <returns>已存在或注册成功为 true；路径无效、加载失败或结果为空为 false</returns>
-        public UniTask<bool> RegisterAsync(string addressablePath, int prewarm = 0, int maxInactive = 0)
+        public async UniTask<bool> RegisterAsync(string addressablePath, int prewarm = 0, int maxInactive = 0)
         {
             if (string.IsNullOrEmpty(addressablePath))
             {
                 Debug.LogError("[PoolManager] RegisterAsync: addressablePath 为空");
-                return UniTask.FromResult(false);
+                return false;
             }
 
             if (_pools.ContainsKey(addressablePath))
             {
                 Debug.LogWarning($"[PoolManager] 池已存在，跳过异步注册: {addressablePath}");
-                return UniTask.FromResult(true);
+                return true;
             }
 
-            var tcs = new UniTaskCompletionSource<bool>();
-            ResourceManager.Instance.LoadAsync<GameObject>(
-                addressablePath,
-                prefab =>
+            try
+            {
+                GameObject prefab = await ResourceManager.Instance.LoadAssetAsync<GameObject>(addressablePath);
+                if (prefab == null)
                 {
-                    if (prefab == null)
-                    {
-                        Debug.LogError($"[PoolManager] RegisterAsync 加载结果为空: {addressablePath}");
-                        tcs.TrySetResult(false);
-                        return;
-                    }
+                    Debug.LogError($"[PoolManager] RegisterAsync 加载结果为空: {addressablePath}");
+                    return false;
+                }
 
-                    Register(addressablePath, prefab, prewarm, maxInactive);
-                    tcs.TrySetResult(true);
-                },
-                ex =>
-                {
-                    Debug.LogError($"[PoolManager] RegisterAsync 加载失败: {addressablePath}, {ex}");
-                    tcs.TrySetResult(false);
-                });
-            return tcs.Task;
+                Register(addressablePath, prefab, prewarm, maxInactive);
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PoolManager] RegisterAsync 加载失败: {addressablePath}, {ex}");
+                return false;
+            }
         }
 
         public bool IsRegistered(string poolId) =>

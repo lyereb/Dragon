@@ -354,7 +354,7 @@ namespace Dragon.Audio
 
                 if (loaded)
                 {
-                    ResourceManager.Instance.Release(address);
+                    ResourceManager.Instance.Release<AudioClip>(address);
                 }
             }
         }
@@ -459,7 +459,7 @@ namespace Dragon.Audio
             {
                 if (loaded)
                 {
-                    ResourceManager.Instance.Release(address);
+                    ResourceManager.Instance.Release<AudioClip>(address);
                 }
             }
         }
@@ -640,7 +640,7 @@ namespace Dragon.Audio
             group.Addresses[index] = null;
             if (!string.IsNullOrEmpty(address))
             {
-                ResourceManager.Instance.Release(address);
+                ResourceManager.Instance.Release<AudioClip>(address);
             }
         }
 
