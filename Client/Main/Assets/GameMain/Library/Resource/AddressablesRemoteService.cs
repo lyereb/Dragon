@@ -40,16 +40,27 @@ namespace Dragon.Resource
                 return;
             }
 
-            var handle = Addressables.InitializeAsync();
-            await WaitHandleAsync(handle, cancellationToken);
-
-            if (handle.Status != AsyncOperationStatus.Succeeded)
+            // 必须传 false：默认 autoReleaseHandle=true 时，完成后句柄立即失效，
+            // await 后再读 Status/Result 会抛 "Attempting to use an invalid operation handle"（WebGL 必现）
+            var handle = Addressables.InitializeAsync(false);
+            try
             {
-                throw handle.OperationException
-                    ?? new Exception("Addressables 初始化失败");
+                await WaitHandleAsync(handle, cancellationToken);
+
+                if (!handle.IsValid() || handle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    throw (handle.IsValid() ? handle.OperationException : null)
+                        ?? new Exception("Addressables 初始化失败");
+                }
+            }
+            finally
+            {
+                if (handle.IsValid())
+                {
+                    Addressables.Release(handle);
+                }
             }
 
-            // Initialize 句柄按官方建议保留，不 Release
             _initialized = true;
             Debug.Log("[AddressablesRemote] 初始化完成");
         }
@@ -62,41 +73,60 @@ namespace Dragon.Resource
             await InitializeAsync(cancellationToken);
 
             var checkHandle = Addressables.CheckForCatalogUpdates(false);
-            await WaitHandleAsync(checkHandle, cancellationToken);
-
-            if (checkHandle.Status != AsyncOperationStatus.Succeeded)
+            try
             {
-                Debug.LogWarning($"[AddressablesRemote] 检查 Catalog 更新失败: {checkHandle.OperationException?.Message}");
-                Addressables.Release(checkHandle);
-                return false;
+                await WaitHandleAsync(checkHandle, cancellationToken);
+
+                if (!checkHandle.IsValid() || checkHandle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    Debug.LogWarning(
+                        $"[AddressablesRemote] 检查 Catalog 更新失败: {(checkHandle.IsValid() ? checkHandle.OperationException?.Message : "invalid handle")}");
+                    return false;
+                }
+
+                List<string> catalogs = checkHandle.Result;
+                if (catalogs == null || catalogs.Count == 0)
+                {
+                    Debug.Log("[AddressablesRemote] Catalog 无需更新");
+                    return false;
+                }
+
+                Debug.Log($"[AddressablesRemote] 发现 {catalogs.Count} 个 Catalog 需要更新");
+
+                var updateHandle = Addressables.UpdateCatalogs(catalogs, false);
+                try
+                {
+                    await WaitHandleAsync(updateHandle, cancellationToken);
+
+                    bool success = updateHandle.IsValid()
+                                   && updateHandle.Status == AsyncOperationStatus.Succeeded;
+                    if (!success)
+                    {
+                        Debug.LogError(
+                            $"[AddressablesRemote] Catalog 更新失败: {(updateHandle.IsValid() ? updateHandle.OperationException?.Message : "invalid handle")}");
+                    }
+                    else
+                    {
+                        Debug.Log("[AddressablesRemote] Catalog 更新完成");
+                    }
+
+                    return success;
+                }
+                finally
+                {
+                    if (updateHandle.IsValid())
+                    {
+                        Addressables.Release(updateHandle);
+                    }
+                }
             }
-
-            List<string> catalogs = checkHandle.Result;
-            Addressables.Release(checkHandle);
-
-            if (catalogs == null || catalogs.Count == 0)
+            finally
             {
-                Debug.Log("[AddressablesRemote] Catalog 无需更新");
-                return false;
+                if (checkHandle.IsValid())
+                {
+                    Addressables.Release(checkHandle);
+                }
             }
-
-            Debug.Log($"[AddressablesRemote] 发现 {catalogs.Count} 个 Catalog 需要更新");
-
-            var updateHandle = Addressables.UpdateCatalogs(catalogs, false);
-            await WaitHandleAsync(updateHandle, cancellationToken);
-
-            bool success = updateHandle.Status == AsyncOperationStatus.Succeeded;
-            if (!success)
-            {
-                Debug.LogError($"[AddressablesRemote] Catalog 更新失败: {updateHandle.OperationException?.Message}");
-            }
-            else
-            {
-                Debug.Log("[AddressablesRemote] Catalog 更新完成");
-            }
-
-            Addressables.Release(updateHandle);
-            return success;
         }
 
         /// <summary>
@@ -107,18 +137,26 @@ namespace Dragon.Resource
             await InitializeAsync(cancellationToken);
 
             var sizeHandle = Addressables.GetDownloadSizeAsync(key);
-            await WaitHandleAsync(sizeHandle, cancellationToken);
-
-            if (sizeHandle.Status != AsyncOperationStatus.Succeeded)
+            try
             {
-                Debug.LogWarning($"[AddressablesRemote] 获取下载大小失败 ({key}): {sizeHandle.OperationException?.Message}");
-                Addressables.Release(sizeHandle);
-                return 0;
-            }
+                await WaitHandleAsync(sizeHandle, cancellationToken);
 
-            long size = sizeHandle.Result;
-            Addressables.Release(sizeHandle);
-            return size;
+                if (!sizeHandle.IsValid() || sizeHandle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    Debug.LogWarning(
+                        $"[AddressablesRemote] 获取下载大小失败 ({key}): {(sizeHandle.IsValid() ? sizeHandle.OperationException?.Message : "invalid handle")}");
+                    return 0;
+                }
+
+                return sizeHandle.Result;
+            }
+            finally
+            {
+                if (sizeHandle.IsValid())
+                {
+                    Addressables.Release(sizeHandle);
+                }
+            }
         }
 
         /// <summary>
@@ -140,19 +178,20 @@ namespace Dragon.Resource
 
             Debug.Log($"[AddressablesRemote] 开始下载依赖: {key}, 大小: {FormatBytes(size)}");
 
-            var downloadHandle = Addressables.DownloadDependenciesAsync(key, true);
+            // autoReleaseHandle 必须为 false，否则完成后访问 Status 会抛 invalid handle
+            var downloadHandle = Addressables.DownloadDependenciesAsync(key, false);
             try
             {
-                while (!downloadHandle.IsDone)
+                while (downloadHandle.IsValid() && !downloadHandle.IsDone)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     onProgress?.Invoke(downloadHandle.PercentComplete);
                     await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
                 }
 
-                if (downloadHandle.Status != AsyncOperationStatus.Succeeded)
+                if (!downloadHandle.IsValid() || downloadHandle.Status != AsyncOperationStatus.Succeeded)
                 {
-                    throw downloadHandle.OperationException
+                    throw (downloadHandle.IsValid() ? downloadHandle.OperationException : null)
                         ?? new Exception($"下载依赖失败: {key}");
                 }
 
@@ -234,12 +273,17 @@ namespace Dragon.Resource
 
         private static async UniTask WaitHandleAsync(AsyncOperationHandle handle, CancellationToken cancellationToken)
         {
-            await UniTask.WaitUntil(() => handle.IsDone, cancellationToken: cancellationToken);
+            // IsValid 为 false 时不可读 IsDone（会抛 invalid handle）
+            await UniTask.WaitUntil(
+                () => !handle.IsValid() || handle.IsDone,
+                cancellationToken: cancellationToken);
         }
 
         private static async UniTask WaitHandleAsync<T>(AsyncOperationHandle<T> handle, CancellationToken cancellationToken)
         {
-            await UniTask.WaitUntil(() => handle.IsDone, cancellationToken: cancellationToken);
+            await UniTask.WaitUntil(
+                () => !handle.IsValid() || handle.IsDone,
+                cancellationToken: cancellationToken);
         }
 
         private static string FormatBytes(long bytes)

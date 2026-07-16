@@ -52,13 +52,6 @@ namespace Dragon.Resource
     {
         public Action<UnityEngine.Object> OnComplete;
         public Action<Exception> OnFail;
-        public CancellationTokenRegistration Registration;
-
-        public void DisposeRegistration()
-        {
-            Registration.Dispose();
-            Registration = default;
-        }
     }
 
     /// <summary>
@@ -98,7 +91,7 @@ namespace Dragon.Resource
         // 存储正在进行中的异步加载请求，防止重复加载同一资源（键为 path + 类型）
         private readonly Dictionary<string, List<PendingLoadCallback>> _pendingLoadRequests = new Dictionary<string, List<PendingLoadCallback>>();
 
-        // 加载中的 Addressables 句柄（尚未入库），用于取消时释放
+        // 加载中的 Addressables 句柄（尚未入库），供 ClearAll 释放
         private readonly Dictionary<string, AsyncOperationHandle> _loadingHandles = new Dictionary<string, AsyncOperationHandle>();
 
         // Addressables 资源句柄字典，用于正确释放资源
@@ -173,6 +166,9 @@ namespace Dragon.Resource
                 return cachedResource;
             }
 
+            // 缓存未命中但残留句柄（缓存层曾清掉失效对象），先释放再加载
+            ReleaseStaleHandleIfNeeded(cacheKey);
+
             AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(path);
             T resource = handle.WaitForCompletion();
 
@@ -198,15 +194,8 @@ namespace Dragon.Resource
         public void LoadAsync<T>(
             string path,
             Action<T> onComplete = null,
-            Action<Exception> onFail = null,
-            CancellationToken cancellationToken = default) where T : UnityEngine.Object
+            Action<Exception> onFail = null) where T : UnityEngine.Object
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                onFail?.Invoke(new OperationCanceledException(cancellationToken));
-                return;
-            }
-
             string cacheKey = MakeCacheKey<T>(path);
 
             if (_resourceCache.TryGetResource<T>(cacheKey, out T cachedResource))
@@ -216,17 +205,14 @@ namespace Dragon.Resource
                 return;
             }
 
+            // 缓存未命中但残留句柄（缓存层曾清掉失效对象），先释放再加载
+            ReleaseStaleHandleIfNeeded(cacheKey);
+
             var pendingCallback = new PendingLoadCallback
             {
                 OnComplete = resource => onComplete?.Invoke(resource as T),
                 OnFail = onFail
             };
-
-            if (cancellationToken.CanBeCanceled)
-            {
-                pendingCallback.Registration = cancellationToken.Register(
-                    () => CancelPendingCallback(cacheKey, pendingCallback));
-            }
 
             if (_pendingLoadRequests.TryGetValue(cacheKey, out var pendingList))
             {
@@ -241,7 +227,7 @@ namespace Dragon.Resource
 
             handle.Completed += op =>
             {
-                // 已被取消并释放
+                // ClearAll 已提前释放
                 if (!_loadingHandles.Remove(cacheKey))
                 {
                     if (op.IsValid())
@@ -278,41 +264,6 @@ namespace Dragon.Resource
                     NotifyLoadFailed(pendingCallbacks, exception);
                 }
             };
-        }
-
-        /// <summary>
-        /// 取消某个等待中的加载回调；若已无等待方则释放进行中的 Addressables 句柄
-        /// </summary>
-        private void CancelPendingCallback(string cacheKey, PendingLoadCallback callback)
-        {
-            if (!_pendingLoadRequests.TryGetValue(cacheKey, out var pendingList))
-            {
-                return;
-            }
-
-            if (!pendingList.Remove(callback))
-            {
-                return;
-            }
-
-            callback.DisposeRegistration();
-            callback.OnFail?.Invoke(new OperationCanceledException("资源加载已取消"));
-
-            if (pendingList.Count > 0)
-            {
-                return;
-            }
-
-            _pendingLoadRequests.Remove(cacheKey);
-
-            if (_loadingHandles.TryGetValue(cacheKey, out var loadingHandle))
-            {
-                _loadingHandles.Remove(cacheKey);
-                if (loadingHandle.IsValid())
-                {
-                    Addressables.Release(loadingHandle);
-                }
-            }
         }
 
         /// <summary>
@@ -386,10 +337,6 @@ namespace Dragon.Resource
             if (_pendingLoadRequests.TryGetValue(cacheKey, out var pendingCallbacks))
             {
                 _pendingLoadRequests.Remove(cacheKey);
-                foreach (var callback in pendingCallbacks)
-                {
-                    callback.DisposeRegistration();
-                }
                 return pendingCallbacks;
             }
 
@@ -411,6 +358,19 @@ namespace Dragon.Resource
                 {
                     callback.OnComplete?.Invoke(null);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 缓存未命中时，若仍残留 Addressables 句柄则强制释放，避免重复加载覆盖导致泄漏
+        /// </summary>
+        private void ReleaseStaleHandleIfNeeded(string cacheKey)
+        {
+            if (_addressableHandles.ContainsKey(cacheKey))
+            {
+                Debug.LogWarning(
+                    $"[ResourceManager] 检测到残留句柄（缓存已失效），强制释放: {cacheKey.Replace(CacheKeySeparator, '|')}");
+                ReleaseInternal(cacheKey);
             }
         }
 
@@ -538,11 +498,27 @@ namespace Dragon.Resource
         }
 
         /// <summary>
-        /// 验证所有缓存资源的有效性并清理无效资源
+        /// 验证所有缓存资源的有效性；无效项同步释放 Addressables 句柄
         /// </summary>
         public int ValidateAndCleanAllResources()
         {
-            return _resourceCache.CleanInvalidResources();
+            List<string> keysToRelease = new List<string>();
+
+            foreach (string cacheKey in _addressableHandles.Keys)
+            {
+                if (!_resourceCache.IsResourceValid(cacheKey))
+                {
+                    keysToRelease.Add(cacheKey);
+                }
+            }
+
+            foreach (string cacheKey in keysToRelease)
+            {
+                ReleaseInternal(cacheKey);
+            }
+
+            // 清理无句柄的残留缓存条目
+            return keysToRelease.Count + _resourceCache.CleanInvalidResources();
         }
 
         /// <summary>
@@ -709,7 +685,7 @@ namespace Dragon.Resource
                     info.Status = PreloadTaskStatus.Loading;
                 }
 
-                await LoadAssetAsync<T>(path, ct);
+                await LoadAssetAsync<T>(path);
 
                 if (_preloadTasks.TryGetValue(path, out info))
                 {
@@ -741,13 +717,10 @@ namespace Dragon.Resource
         }
 
         /// <summary>
-        /// 异步加载资源并返回结果（支持取消）
+        /// 异步加载资源并返回结果
         /// </summary>
-        public async UniTask<T> LoadAssetAsync<T>(string path, CancellationToken cancellationToken = default)
-            where T : UnityEngine.Object
+        public async UniTask<T> LoadAssetAsync<T>(string path) where T : UnityEngine.Object
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
             var tcs = new UniTaskCompletionSource<T>();
             LoadAsync<T>(
                 path,
@@ -764,22 +737,14 @@ namespace Dragon.Resource
                 },
                 exception =>
                 {
-                    if (exception is OperationCanceledException || cancellationToken.IsCancellationRequested)
-                    {
-                        tcs.TrySetCanceled(cancellationToken);
-                    }
-                    else
-                    {
-                        tcs.TrySetException(exception ?? new Exception($"资源加载失败: {path}"));
-                    }
-                },
-                cancellationToken);
+                    tcs.TrySetException(exception ?? new Exception($"资源加载失败: {path}"));
+                });
 
             return await tcs.Task;
         }
 
         /// <summary>
-        /// 取消所有预加载任务（含进行中的 Addressables 加载）
+        /// 取消批量预加载调度（已发起的 LoadAsync 仍会完成并入库）
         /// </summary>
         public void CancelAllPreloads()
         {

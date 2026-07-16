@@ -34,23 +34,32 @@ namespace Dragon.Resource
             }
 
             var locationsHandle = Addressables.LoadResourceLocationsAsync(label, assetType);
-            await UniTask.WaitUntil(() => locationsHandle.IsDone);
-
-            if (locationsHandle.Status != AsyncOperationStatus.Succeeded)
+            List<string> resourceAddresses;
+            try
             {
-                Debug.LogError($"[标签预加载] 加载标签'{label}'失败: {locationsHandle.OperationException?.Message}");
-                Addressables.Release(locationsHandle);
-                onComplete?.Invoke();
-                return;
-            }
+                await UniTask.WaitUntil(() => !locationsHandle.IsValid() || locationsHandle.IsDone);
 
-            var resourceAddresses = new List<string>(locationsHandle.Result.Count);
-            foreach (var location in locationsHandle.Result)
+                if (!locationsHandle.IsValid() || locationsHandle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    Debug.LogError(
+                        $"[标签预加载] 加载标签'{label}'失败: {(locationsHandle.IsValid() ? locationsHandle.OperationException?.Message : "invalid handle")}");
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                resourceAddresses = new List<string>(locationsHandle.Result.Count);
+                foreach (var location in locationsHandle.Result)
+                {
+                    resourceAddresses.Add(location.PrimaryKey);
+                }
+            }
+            finally
             {
-                resourceAddresses.Add(location.PrimaryKey);
+                if (locationsHandle.IsValid())
+                {
+                    Addressables.Release(locationsHandle);
+                }
             }
-
-            Addressables.Release(locationsHandle);
 
             Debug.Log($"[标签预加载] 标签'{label}'共 {resourceAddresses.Count} 个资源");
 

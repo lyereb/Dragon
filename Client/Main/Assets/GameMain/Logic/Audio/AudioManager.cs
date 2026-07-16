@@ -317,7 +317,7 @@ namespace Dragon.Audio
 
             try
             {
-                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address, ct);
+                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address);
                 loaded = true;
 
                 if (ch.OpId != opId || ct.IsCancellationRequested)
@@ -389,7 +389,7 @@ namespace Dragon.Audio
             var loaded = false;
             try
             {
-                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address, cancellationToken);
+                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address);
                 loaded = true;
 
                 if (opId != group.OpId)
