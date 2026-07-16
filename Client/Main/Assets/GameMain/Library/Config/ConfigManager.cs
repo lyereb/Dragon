@@ -70,27 +70,24 @@ namespace Dragon.Config
         /// </summary>
         private async UniTask LoadConfigFileListAsync()
         {
-            UniTaskCompletionSource<ConfigFileList> tcs = new UniTaskCompletionSource<ConfigFileList>();
-            
-            // 直接使用回调，避免CS4014警告
-            ResourceManager.Instance.LoadAsync<ConfigFileList>(
-                ConfigLoadConst.CONFIG_FILE_LIST_PATH,
-                (configList) => {
-                    if (configList != null)
-                    {
-                        ConfigFileList = configList;
-                        _totalCount = ConfigFileList.GetConfigCount();
-                        Debug.Log($"配置文件列表加载完成，共{_totalCount}个配置文件");
-                        tcs.TrySetResult(ConfigFileList);
-                    }
-                    else
-                    {
-                        Debug.LogError($"加载配置文件列表失败: 未找到配置文件 {ConfigLoadConst.CONFIG_FILE_LIST_PATH}");
-                        tcs.TrySetResult(null);
-                    }
-                });
+            try
+            {
+                ConfigFileList = await ResourceManager.Instance.LoadAssetAsync<ConfigFileList>(
+                    ConfigLoadConst.CONFIG_FILE_LIST_PATH);
+                if (ConfigFileList == null)
+                {
+                    Debug.LogError($"加载配置文件列表失败: 未找到配置文件 {ConfigLoadConst.CONFIG_FILE_LIST_PATH}");
+                    return;
+                }
 
-            await tcs.Task;
+                _totalCount = ConfigFileList.GetConfigCount();
+                Debug.Log($"配置文件列表加载完成，共{_totalCount}个配置文件");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"加载配置文件列表失败: {ConfigLoadConst.CONFIG_FILE_LIST_PATH}, {ex.Message}");
+                ConfigFileList = null;
+            }
         }
 
         /// <summary>
@@ -119,41 +116,37 @@ namespace Dragon.Config
         /// </summary>
         private async UniTask LoadSingleConfigAsync(string fileName)
         {
-            UniTaskCompletionSource<TextAsset> tcs = new UniTaskCompletionSource<TextAsset>();
-            
-            // 根据加载格式构建地址
             string address = ConfigLoadConst.CONFIG_ADDRESSABLE_PREFIX + fileName;
-            
-            ResourceManager.Instance.LoadAsync<TextAsset>(
-                address,
-                (asset) => {
-                    if (asset != null)
-                    {
-                        try
-                        {
-                            JSONNode jsonData = JSON.Parse(asset.text);
-                            _configData[fileName] = jsonData;
-                            Debug.Log($"配置文件加载成功: {fileName}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"解析配置文件失败 {fileName}: {ex.Message}");
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogError($"加载配置文件失败 {fileName}: 未找到资源 {address}");
-                    }
-                    
-                    // 更新进度
-                    _loadedCount++;
-                    float progress = (float)_loadedCount / _totalCount;
-                    OnLoadProgress?.Invoke(progress);
-                    
-                    tcs.TrySetResult(asset);
-                });
 
-            await tcs.Task;
+            try
+            {
+                TextAsset asset = await ResourceManager.Instance.LoadAssetAsync<TextAsset>(address);
+                if (asset != null)
+                {
+                    try
+                    {
+                        JSONNode jsonData = JSON.Parse(asset.text);
+                        _configData[fileName] = jsonData;
+                        Debug.Log($"配置文件加载成功: {fileName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"解析配置文件失败 {fileName}: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"加载配置文件失败 {fileName}: 未找到资源 {address}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"加载配置文件失败 {fileName}: {address}, {ex.Message}");
+            }
+
+            _loadedCount++;
+            float progress = (float)_loadedCount / _totalCount;
+            OnLoadProgress?.Invoke(progress);
         }
 
         /// <summary>
