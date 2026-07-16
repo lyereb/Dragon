@@ -116,12 +116,7 @@ public partial class Entity : FSMHostBase<EntityStateCode>
             return UniTask.FromResult<GameObject>(null);
         }
 
-        var loadTcs = new UniTaskCompletionSource<GameObject>();
-        ResourceManager.Instance.LoadAsync<GameObject>(
-            prefabName,
-            prefab => loadTcs.TrySetResult(prefab),
-            exception => loadTcs.TrySetException(exception));
-        return loadTcs.Task;
+        return ResourceManager.Instance.LoadAssetAsync<GameObject>(prefabName);
     }
 
     protected virtual string GetSkinPrefabName(EntityInitContext context)

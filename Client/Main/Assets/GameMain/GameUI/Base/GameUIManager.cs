@@ -65,13 +65,17 @@ namespace Dragon.GameUI
                 return;
             }
 
-            var loadTcs = new UniTaskCompletionSource<GameObject>();
-            ResourceManager.Instance.LoadAsync<GameObject>(
-                uiName,
-                prefab => loadTcs.TrySetResult(prefab),
-                exception => loadTcs.TrySetException(exception));
+            GameObject prefab;
+            try
+            {
+                prefab = await ResourceManager.Instance.LoadAssetAsync<GameObject>(uiName);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"OpenMainUI failed: can not load prefab at path {uiName}. {ex.Message}");
+                return;
+            }
 
-            var prefab = await loadTcs.Task;
             if (prefab == null)
             {
                 Debug.LogError($"OpenMainUI failed: can not load prefab at path {uiName}.");
@@ -132,13 +136,17 @@ namespace Dragon.GameUI
                 return;
             }
 
-            var loadTcs = new UniTaskCompletionSource<GameObject>();
-            ResourceManager.Instance.LoadAsync<GameObject>(
-                uiName,
-                prefab => loadTcs.TrySetResult(prefab),
-                exception => loadTcs.TrySetException(exception));
+            GameObject prefab;
+            try
+            {
+                prefab = await ResourceManager.Instance.LoadAssetAsync<GameObject>(uiName);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"OpenUI failed: can not load prefab at path {uiName}. {ex.Message}");
+                return;
+            }
 
-            var prefab = await loadTcs.Task;
             if (prefab == null)
             {
                 Debug.LogError($"OpenUI failed: can not load prefab at path {uiName}.");
