@@ -34,7 +34,6 @@ namespace Dragon.Library
         public static DebugLogManager DebugLogManager = null;
         public static UIQueueManager UIQueueManager = null;
         public static PoolManager PoolManager = null;
-        public static SchedulerManager SchedulerManager = null;
         #endregion
 
         #region //游戏逻辑管理器
@@ -110,7 +109,6 @@ namespace Dragon.Library
         {
             if (!_isInitialized) return;
             StateManager.Update(deltaTime);
-            SchedulerManager.Update(deltaTime);
             TerminalManager.Update(deltaTime);
             MapSceneManager.Update(deltaTime);
         }
@@ -156,7 +154,6 @@ namespace Dragon.Library
             DebugLogManager = DebugLogManager.Instance;
             DebugLogManager.Init();
             PoolManager = PoolManager.Instance;
-            SchedulerManager = SchedulerManager.Instance;
 
             Debug.Log("NewCoreSystem Finished!!");
         }
@@ -183,7 +180,6 @@ namespace Dragon.Library
             Debug.Log("开始加载用户数据");
             DataManager.Init();
             SaveManager.Init();
-            SchedulerManager.Init();
             Debug.Log("用户数据加载完成");
 
             await UniTask.Yield();
@@ -199,7 +195,6 @@ namespace Dragon.Library
             StateManager.Uninitialize();
             EventManager.ClearAllEvent();
             InputManager.Shutdown();
-            SchedulerManager.Shutdown();
             PoolManager.ClearAll();
             DebugLogManager.Shutdown();
         }

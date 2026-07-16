@@ -55,7 +55,7 @@ namespace Dragon.Logic
         private int _roundEndListenToken;
         private Action _beforeRoundQueueBuildHandler;
         private const float TurnPhaseTimeoutSeconds = 5f;
-        private int _turnPhaseTimeoutTaskId = -1;
+        private UniTaskHelper.Handle _turnPhaseTimeoutHandle = UniTaskHelper.Handle.Empty;
         private int _turnPhaseTimeoutToken;
 
         #region Public API（对外方法/属性）
@@ -642,13 +642,7 @@ namespace Dragon.Logic
 
             _turnPhaseTimeoutToken++;
             int timeoutToken = _turnPhaseTimeoutToken;
-            if (GameCenter.SchedulerManager == null)
-            {
-                Debug.LogWarning("RoundManager: SchedulerManager 未初始化，无法启用回合阶段超时监控。");
-                return;
-            }
-
-            _turnPhaseTimeoutTaskId = GameCenter.SchedulerManager.Delay(TurnPhaseTimeoutSeconds, () =>
+            _turnPhaseTimeoutHandle = UniTaskHelper.Delay(TurnPhaseTimeoutSeconds, () =>
             {
                 if (!_roundCycleActive || _roundPhase != RoundPhase.Execute)
                 {
@@ -686,11 +680,11 @@ namespace Dragon.Logic
         private void CancelTurnPhaseTimeoutWatch()
         {
             _turnPhaseTimeoutToken++;
-            if (_turnPhaseTimeoutTaskId > 0 && GameCenter.SchedulerManager != null)
+            if (!_turnPhaseTimeoutHandle.IsEmpty && !_turnPhaseTimeoutHandle.IsCancelled)
             {
-                GameCenter.SchedulerManager.Cancel(_turnPhaseTimeoutTaskId);
+                _turnPhaseTimeoutHandle.Cancel();
             }
-            _turnPhaseTimeoutTaskId = -1;
+            _turnPhaseTimeoutHandle = UniTaskHelper.Handle.Empty;
         }
 
         private bool TryStartInsertedTurn()
