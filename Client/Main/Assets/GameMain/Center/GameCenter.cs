@@ -208,6 +208,7 @@ namespace Dragon.Library
             EventManager.ClearAllEvent();
             InputManager.Shutdown();
             PoolManager.ClearAll();
+            ResourceManager.ClearAll();
             DebugLogManager.Shutdown();
         }
         #endregion
