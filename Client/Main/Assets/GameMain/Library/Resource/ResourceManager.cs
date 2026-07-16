@@ -541,7 +541,72 @@ namespace Dragon.Resource
         private static MethodInfo _preloadResourcesAsyncGenericMethod;
 
         /// <summary>
-        /// 批量预加载资源（按运行时类型，异步，Semaphore 限流 + WhenAll）
+        /// WebGL 安全的异步并发闸门。
+        /// 不可使用 SemaphoreSlim.WaitAsync：WebGL 无 ThreadPool，排队等待会永久卡死。
+        /// </summary>
+        private sealed class AsyncConcurrencyGate
+        {
+            private readonly int _maxCount;
+            private int _currentCount;
+            private readonly Queue<UniTaskCompletionSource> _waitQueue = new Queue<UniTaskCompletionSource>();
+
+            public AsyncConcurrencyGate(int maxCount)
+            {
+                _maxCount = Math.Max(1, maxCount);
+            }
+
+            public async UniTask WaitAsync(CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (_currentCount < _maxCount)
+                {
+                    _currentCount++;
+                    return;
+                }
+
+                var tcs = new UniTaskCompletionSource();
+                _waitQueue.Enqueue(tcs);
+
+                CancellationTokenRegistration registration = default;
+                if (cancellationToken.CanBeCanceled)
+                {
+                    registration = cancellationToken.Register(
+                        state => ((UniTaskCompletionSource)state).TrySetCanceled(),
+                        tcs);
+                }
+
+                try
+                {
+                    await tcs.Task;
+                }
+                finally
+                {
+                    registration.Dispose();
+                }
+            }
+
+            public void Release()
+            {
+                while (_waitQueue.Count > 0)
+                {
+                    var next = _waitQueue.Dequeue();
+                    // 已取消的 waiter 跳过，槽位转给下一个真正等待的任务
+                    if (next.TrySetResult())
+                    {
+                        return;
+                    }
+                }
+
+                if (_currentCount > 0)
+                {
+                    _currentCount--;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 批量预加载资源（按运行时类型，异步，并发限流 + WhenAll）
         /// </summary>
         public UniTask PreloadResourcesAsync(
             string[] paths,
@@ -576,7 +641,7 @@ namespace Dragon.Resource
         }
 
         /// <summary>
-        /// 批量预加载资源（异步，Semaphore 限流 + WhenAll）
+        /// 批量预加载资源（异步，并发限流 + WhenAll）
         /// </summary>
         public async UniTask PreloadResourcesAsync<T>(
             string[] paths,
@@ -621,26 +686,24 @@ namespace Dragon.Resource
             int finished = 0;
             Debug.Log($"开始预加载 {total} 个资源，最大并发数: {_maxConcurrentPreloads}");
 
-            using (var semaphore = new SemaphoreSlim(_maxConcurrentPreloads, _maxConcurrentPreloads))
-            {
-                UniTask[] tasks = uniquePaths.Select(path => PreloadOneAsync<T>(
-                    path,
-                    semaphore,
-                    ct,
-                    () =>
-                    {
-                        int done = Interlocked.Increment(ref finished);
-                        onProgress?.Invoke((float)done / total);
-                    })).ToArray();
+            var gate = new AsyncConcurrencyGate(_maxConcurrentPreloads);
+            UniTask[] tasks = uniquePaths.Select(path => PreloadOneAsync<T>(
+                path,
+                gate,
+                ct,
+                () =>
+                {
+                    int done = Interlocked.Increment(ref finished);
+                    onProgress?.Invoke((float)done / total);
+                })).ToArray();
 
-                try
-                {
-                    await UniTask.WhenAll(tasks);
-                }
-                catch (OperationCanceledException)
-                {
-                    Debug.LogWarning("预加载已取消");
-                }
+            try
+            {
+                await UniTask.WhenAll(tasks);
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.LogWarning("预加载已取消");
             }
 
             int completedTasks = _preloadTasks.Values.Count(t => t.Status == PreloadTaskStatus.Completed);
@@ -657,13 +720,13 @@ namespace Dragon.Resource
 
         private async UniTask PreloadOneAsync<T>(
             string path,
-            SemaphoreSlim semaphore,
+            AsyncConcurrencyGate gate,
             CancellationToken ct,
             Action onFinished) where T : UnityEngine.Object
         {
             try
             {
-                await semaphore.WaitAsync(ct);
+                await gate.WaitAsync(ct);
             }
             catch (OperationCanceledException)
             {
@@ -711,7 +774,7 @@ namespace Dragon.Resource
             }
             finally
             {
-                semaphore.Release();
+                gate.Release();
                 onFinished?.Invoke();
             }
         }
