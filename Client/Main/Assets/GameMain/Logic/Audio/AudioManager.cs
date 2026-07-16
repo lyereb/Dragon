@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
+using Dragon.Resource;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Dragon.Audio
 {
     /// <summary>
-    /// 音频管理：BGM / 环境音双通道交叉淡化，音效多通道池；资源通过 Addressables 地址（address）加载。
+    /// 音频管理：BGM / 环境音双通道交叉淡化，音效多通道池；资源通过 ResourceManager（Addressables 地址）加载。
     /// </summary>
     public class AudioManager
     {
@@ -63,7 +62,6 @@ namespace Dragon.Audio
             public string Name;
             public float MasterVolume;
             public AudioSource[] Sources;
-            public AsyncOperationHandle<AudioClip>[] ClipHandles;
             public string[] Addresses;
             public float[] RelativeVolumes;
             public bool[] PreservePlaybackPositions;
@@ -313,27 +311,21 @@ namespace Dragon.Audio
         private async UniTask SfxPlayRoutine(SfxChannel ch, int opId, string address, float volume,
             CancellationToken externalCt)
         {
-            AsyncOperationHandle<AudioClip> handle = default;
+            var loaded = false;
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ch.Cts.Token, externalCt);
             var ct = linked.Token;
 
             try
             {
-                handle = Addressables.LoadAssetAsync<AudioClip>(address);
-                await handle.ToUniTask(cancellationToken: ct);
+                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address, ct);
+                loaded = true;
 
                 if (ch.OpId != opId || ct.IsCancellationRequested)
                 {
                     return;
                 }
 
-                if (handle.Status != AsyncOperationStatus.Succeeded)
-                {
-                    Debug.LogError($"[AudioManager] 音效加载失败: {address}, {handle.OperationException}");
-                    return;
-                }
-
-                ch.Source.clip = handle.Result;
+                ch.Source.clip = clip;
                 ch.Source.volume = Mathf.Clamp01(volume) * _sfxVolume;
                 ch.Source.Play();
 
@@ -342,6 +334,10 @@ namespace Dragon.Audio
             catch (OperationCanceledException)
             {
                 // 正常取消或抢占
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[AudioManager] 音效加载失败: {address}, {ex.Message}");
             }
             finally
             {
@@ -356,9 +352,9 @@ namespace Dragon.Audio
                     ch.Busy = false;
                 }
 
-                if (handle.IsValid())
+                if (loaded)
                 {
-                    Addressables.Release(handle);
+                    ResourceManager.Instance.Release(address);
                 }
             }
         }
@@ -390,38 +386,26 @@ namespace Dragon.Audio
             var resolvedFadeOutDuration = Mathf.Max(0f, fadeOutDuration ?? DefaultMusicFadeOutDuration);
             var nextIndex = group.ActiveIndex == 0 ? 1 : 0;
 
-            var handle = Addressables.LoadAssetAsync<AudioClip>(address);
+            var loaded = false;
             try
             {
-                await handle.ToUniTask(cancellationToken: cancellationToken);
+                var clip = await ResourceManager.Instance.LoadAssetAsync<AudioClip>(address, cancellationToken);
+                loaded = true;
+
                 if (opId != group.OpId)
                 {
-                    if (handle.IsValid())
-                    {
-                        Addressables.Release(handle);
-                    }
-                    return;
-                }
-
-                if (handle.Status != AsyncOperationStatus.Succeeded)
-                {
-                    Debug.LogError($"[AudioManager] {group.Name} 加载失败: {address}, {handle.OperationException}");
-                    if (handle.IsValid())
-                    {
-                        Addressables.Release(handle);
-                    }
                     return;
                 }
 
                 var oldIndex = group.ActiveIndex;
                 var targetSource = group.Sources[nextIndex];
                 SavePlaybackPosition(group, nextIndex);
-                ReleaseHandle(group, nextIndex);
+                ReleaseClipAt(group, nextIndex);
                 targetSource.Stop();
-                targetSource.clip = handle.Result;
+                targetSource.clip = clip;
                 targetSource.loop = loop;
-                group.ClipHandles[nextIndex] = handle;
                 group.Addresses[nextIndex] = address;
+                loaded = false; // 所有权交给通道，由 ReleaseClipAt 释放
                 group.PreservePlaybackPositions[nextIndex] = preservePlaybackPosition;
                 var targetRelativeVolume = Mathf.Clamp01(volume);
                 group.RelativeVolumes[nextIndex] = targetRelativeVolume;
@@ -449,9 +433,8 @@ namespace Dragon.Audio
                     group.Sources[oldIndex].Stop();
                     group.Sources[oldIndex].clip = null;
                     group.RelativeVolumes[oldIndex] = 0f;
-                    group.Addresses[oldIndex] = null;
                     group.PreservePlaybackPositions[oldIndex] = false;
-                    ReleaseHandle(group, oldIndex);
+                    ReleaseClipAt(group, oldIndex);
                 }
                 else
                 {
@@ -466,17 +449,17 @@ namespace Dragon.Audio
             }
             catch (OperationCanceledException)
             {
-                if (handle.IsValid())
-                {
-                    Addressables.Release(handle);
-                }
+                // 取消时若尚未交给通道，则在 finally 释放
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[AudioManager] {group.Name} 异常: {address}, {ex}");
-                if (handle.IsValid())
+            }
+            finally
+            {
+                if (loaded)
                 {
-                    Addressables.Release(handle);
+                    ResourceManager.Instance.Release(address);
                 }
             }
         }
@@ -578,9 +561,8 @@ namespace Dragon.Audio
             }
 
             group.RelativeVolumes[index] = 0f;
-            group.Addresses[index] = null;
             group.PreservePlaybackPositions[index] = false;
-            ReleaseHandle(group, index);
+            ReleaseClipAt(group, index);
             group.ActiveIndex = -1;
         }
 
@@ -611,7 +593,6 @@ namespace Dragon.Audio
                 Name = groupName,
                 MasterVolume = Mathf.Clamp01(initialVolume),
                 Sources = sources,
-                ClipHandles = new AsyncOperationHandle<AudioClip>[CrossFadeSourceCount],
                 Addresses = new string[CrossFadeSourceCount],
                 RelativeVolumes = new float[CrossFadeSourceCount],
                 PreservePlaybackPositions = new bool[CrossFadeSourceCount],
@@ -641,25 +622,25 @@ namespace Dragon.Audio
                     group.Sources[i].clip = null;
                 }
                 group.RelativeVolumes[i] = 0f;
-                group.Addresses[i] = null;
                 group.PreservePlaybackPositions[i] = false;
-                ReleaseHandle(group, i);
+                ReleaseClipAt(group, i);
             }
 
             group.PlaybackPositions.Clear();
         }
 
-        private void ReleaseHandle(MusicChannelGroup group, int index)
+        private static void ReleaseClipAt(MusicChannelGroup group, int index)
         {
-            if (group == null || group.ClipHandles == null || index < 0 || index >= group.ClipHandles.Length)
+            if (group?.Addresses == null || index < 0 || index >= group.Addresses.Length)
             {
                 return;
             }
 
-            if (group.ClipHandles[index].IsValid())
+            var address = group.Addresses[index];
+            group.Addresses[index] = null;
+            if (!string.IsNullOrEmpty(address))
             {
-                Addressables.Release(group.ClipHandles[index]);
-                group.ClipHandles[index] = default;
+                ResourceManager.Instance.Release(address);
             }
         }
 

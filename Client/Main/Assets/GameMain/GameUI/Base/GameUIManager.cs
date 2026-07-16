@@ -66,7 +66,7 @@ namespace Dragon.GameUI
             }
 
             var loadTcs = new UniTaskCompletionSource<GameObject>();
-            _ = ResourceManager.Instance.LoadAsync<GameObject>(
+            ResourceManager.Instance.LoadAsync<GameObject>(
                 uiName,
                 prefab => loadTcs.TrySetResult(prefab),
                 exception => loadTcs.TrySetException(exception));
@@ -133,7 +133,7 @@ namespace Dragon.GameUI
             }
 
             var loadTcs = new UniTaskCompletionSource<GameObject>();
-            _ = ResourceManager.Instance.LoadAsync<GameObject>(
+            ResourceManager.Instance.LoadAsync<GameObject>(
                 uiName,
                 prefab => loadTcs.TrySetResult(prefab),
                 exception => loadTcs.TrySetException(exception));

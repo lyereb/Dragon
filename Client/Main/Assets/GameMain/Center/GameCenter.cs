@@ -22,6 +22,7 @@ namespace Dragon.Library
         #region//游戏中内核逻辑管理器
         public static ResourceManager ResourceManager = null;
         public static ResourcePreloadService ResourcePreloadService = null;
+        public static AddressablesRemoteService AddressablesRemoteService = null;
         public static ConfigManager ConfigManager = null;
         public static GameStateManager StateManager = null;
         public static EventManager EventManager = null;
@@ -144,6 +145,7 @@ namespace Dragon.Library
             InputManager = InputManager.Instance;
             ResourceManager = ResourceManager.Instance;
             ResourcePreloadService = ResourcePreloadService.Instance;
+            AddressablesRemoteService = AddressablesRemoteService.Instance;
             ConfigManager = ConfigManager.Instance;
             DataManager = GameDataManager.Instance;
             SaveManager = GameSaveManager.Instance;
@@ -166,6 +168,16 @@ namespace Dragon.Library
             StateManager.Initialize();
             ResourceManager.Initialize();
             InputManager.Init();
+
+            // 下载 / 加载资源期间进入 Update，由状态机打开对应 UI
+            StateManager.ChangeState(GameStateCode.Update);
+            await UniTask.Yield();
+
+            Debug.Log("开始准备 Addressables 资源（Catalog/下载）...");
+            await AddressablesRemoteService.PrepareStartupResourcesAsync(
+                ResourcePreloadService.GetStartupDownloadKeys(),
+                null);
+            Debug.Log("Addressables 资源准备完成");
 
             // 异步初始化配置管理器
             Debug.Log("开始预加载配置资源...");

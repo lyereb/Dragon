@@ -4,29 +4,30 @@ using UnityEngine;
 namespace Dragon.Resource
 {
     /// <summary>
-    /// 资源缓存接口，定义缓存操作的标准方法
+    /// 资源缓存接口，定义缓存操作的标准方法。
+    /// 键由 ResourceManager 生成（地址 + 类型），本层按不透明字符串处理。
     /// </summary>
     public interface IResourceCache
     {
         /// <summary>
         /// 尝试从缓存中获取资源
         /// </summary>
-        bool TryGetResource<T>(string path, out T resource) where T : UnityEngine.Object;
+        bool TryGetResource<T>(string cacheKey, out T resource) where T : UnityEngine.Object;
         
         /// <summary>
         /// 将资源添加到缓存中
         /// </summary>
-        void AddResource<T>(string path, T resource) where T : UnityEngine.Object;
+        void AddResource<T>(string cacheKey, T resource) where T : UnityEngine.Object;
         
         /// <summary>
         /// 从缓存中移除资源
         /// </summary>
-        void RemoveResource(string path);
+        void RemoveResource(string cacheKey);
         
         /// <summary>
         /// 验证资源是否有效
         /// </summary>
-        bool IsResourceValid(string path);
+        bool IsResourceValid(string cacheKey);
         
         /// <summary>
         /// 清理所有无效资源
@@ -37,6 +38,11 @@ namespace Dragon.Resource
         /// 获取缓存资源数量
         /// </summary>
         int GetCachedResourceCount();
+
+        /// <summary>
+        /// 清空全部缓存
+        /// </summary>
+        void Clear();
     }
     
     /// <summary>
@@ -48,48 +54,48 @@ namespace Dragon.Resource
         private readonly Dictionary<string, float> _lastValidationTimes = new Dictionary<string, float>();
         private const float VALIDATION_INTERVAL = 10f;
         
-        public bool TryGetResource<T>(string path, out T resource) where T : UnityEngine.Object
+        public bool TryGetResource<T>(string cacheKey, out T resource) where T : UnityEngine.Object
         {
             resource = null;
             
-            if (_cachedResources.ContainsKey(path))
+            if (_cachedResources.ContainsKey(cacheKey))
             {
-                if (IsResourceValid(path))
+                if (IsResourceValid(cacheKey))
                 {
-                    resource = _cachedResources[path] as T;
-                    _lastValidationTimes[path] = Time.time;
+                    resource = _cachedResources[cacheKey] as T;
+                    _lastValidationTimes[cacheKey] = Time.time;
                     return resource != null;
                 }
                 else
                 {
-                    RemoveResource(path);
+                    RemoveResource(cacheKey);
                 }
             }
             
             return false;
         }
         
-        public void AddResource<T>(string path, T resource) where T : UnityEngine.Object
+        public void AddResource<T>(string cacheKey, T resource) where T : UnityEngine.Object
         {
             if (resource != null)
             {
-                _cachedResources[path] = resource;
-                _lastValidationTimes[path] = Time.time;
+                _cachedResources[cacheKey] = resource;
+                _lastValidationTimes[cacheKey] = Time.time;
             }
         }
         
-        public void RemoveResource(string path)
+        public void RemoveResource(string cacheKey)
         {
-            _cachedResources.Remove(path);
-            _lastValidationTimes.Remove(path);
+            _cachedResources.Remove(cacheKey);
+            _lastValidationTimes.Remove(cacheKey);
         }
         
-        public bool IsResourceValid(string path)
+        public bool IsResourceValid(string cacheKey)
         {
-            if (!_cachedResources.ContainsKey(path))
+            if (!_cachedResources.ContainsKey(cacheKey))
                 return false;
 
-            UnityEngine.Object resource = _cachedResources[path];
+            UnityEngine.Object resource = _cachedResources[cacheKey];
             
             if (resource == null)
                 return false;
@@ -97,17 +103,17 @@ namespace Dragon.Resource
             if (resource is GameObject go && go == null)
                 return false;
 
-            if (_lastValidationTimes.ContainsKey(path))
+            if (_lastValidationTimes.ContainsKey(cacheKey))
             {
-                float lastValidationTime = _lastValidationTimes[path];
+                float lastValidationTime = _lastValidationTimes[cacheKey];
                 if (Time.time - lastValidationTime > VALIDATION_INTERVAL)
                 {
-                    _lastValidationTimes[path] = Time.time;
+                    _lastValidationTimes[cacheKey] = Time.time;
                 }
             }
             else
             {
-                _lastValidationTimes[path] = Time.time;
+                _lastValidationTimes[cacheKey] = Time.time;
             }
 
             return true;
@@ -125,9 +131,9 @@ namespace Dragon.Resource
                 }
             }
             
-            foreach (string path in invalidResources)
+            foreach (string cacheKey in invalidResources)
             {
-                RemoveResource(path);
+                RemoveResource(cacheKey);
             }
             
             return invalidResources.Count;
@@ -136,6 +142,12 @@ namespace Dragon.Resource
         public int GetCachedResourceCount()
         {
             return _cachedResources.Count;
+        }
+
+        public void Clear()
+        {
+            _cachedResources.Clear();
+            _lastValidationTimes.Clear();
         }
     }
 }

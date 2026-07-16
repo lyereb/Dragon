@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Cysharp.Threading.Tasks; // 引入 UniTask
+using System.Reflection;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
-
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
@@ -14,39 +15,12 @@ namespace Dragon.Resource
     /// </summary>
     public class ResourceManagerStats
     {
-        /// <summary>
-        /// 总缓存资源数
-        /// </summary>
         public int TotalCachedResources { get; set; }
-
-        /// <summary>
-        /// 跟踪的引用计数数
-        /// </summary>
         public int TrackedReferenceCounts { get; set; }
-
-        /// <summary>
-        /// 路径映射数
-        /// </summary>
-        public int PathMappings { get; set; }
-
-        /// <summary>
-        /// 当前使用的加载策略
-        /// </summary>
-        public string CurrentStrategy { get; set; }
-
-        /// <summary>
-        /// 预加载任务总数
-        /// </summary>
-        public int TotalPreloadTasks { get; set; }
-
-        /// <summary>
-        /// 已完成的预加载任务数
-        /// </summary>
-        public int CompletedPreloadTasks { get; set; }
 
         public override string ToString()
         {
-            return $"总缓存资源: {TotalCachedResources}, 引用计数: {TrackedReferenceCounts}, 路径映射: {PathMappings}, 策略: {CurrentStrategy}, 预加载进度: {CompletedPreloadTasks}/{TotalPreloadTasks}";
+            return $"总缓存资源: {TotalCachedResources}, 引用计数: {TrackedReferenceCounts}";
         }
     }
 
@@ -69,16 +43,31 @@ namespace Dragon.Resource
         public string ResourcePath { get; set; }
         public PreloadTaskStatus Status { get; set; }
         public Exception Error { get; set; }
-        public float Progress { get; set; }
-        public object ResourceHandle { get; set; } // 存储资源句柄或引用
     }
 
     /// <summary>
-    /// 资源管理器，用于统一管理游戏中的各种资源加载、卸载和缓存
-    /// 设计上考虑了未来向AssetBundle或Addressables迁移的可能性
+    /// 异步加载等待回调（同一地址+类型并发请求合并时使用）
+    /// </summary>
+    internal class PendingLoadCallback
+    {
+        public Action<UnityEngine.Object> OnComplete;
+        public Action<Exception> OnFail;
+        public CancellationTokenRegistration Registration;
+
+        public void DisposeRegistration()
+        {
+            Registration.Dispose();
+            Registration = default;
+        }
+    }
+
+    /// <summary>
+    /// 资源管理器，基于 Addressables 统一管理游戏中的资源加载、卸载和缓存
     /// </summary>
     public class ResourceManager
     {
+        private const char CacheKeySeparator = '\0';
+
         #region //静态变量
 
         //静态变量
@@ -100,267 +89,391 @@ namespace Dragon.Resource
 
         private static SpriteLoader SpriteLoader;
 
-        // 引用计数，用于跟踪资源使用情况
+        // 引用计数，键为 path + 类型
         private readonly Dictionary<string, int> _referenceCounts = new Dictionary<string, int>();
-
-        // 资源加载路径映射，便于未来迁移
-        private readonly Dictionary<string, string> _pathMapping = new Dictionary<string, string>();
-
-        // 资源加载策略
-        private IResourceLoadStrategy _loadStrategy;
 
         // 资源缓存实例
         private IResourceCache _resourceCache;
 
-        // 存储正在进行中的异步加载请求，防止重复加载同一资源
-        private readonly Dictionary<string, List<Action<UnityEngine.Object>>> _pendingLoadRequests = new Dictionary<string, List<Action<UnityEngine.Object>>>();
+        // 存储正在进行中的异步加载请求，防止重复加载同一资源（键为 path + 类型）
+        private readonly Dictionary<string, List<PendingLoadCallback>> _pendingLoadRequests = new Dictionary<string, List<PendingLoadCallback>>();
 
-        // Addressables资源句柄字典，用于正确释放Addressables资源
+        // 加载中的 Addressables 句柄（尚未入库），用于取消时释放
+        private readonly Dictionary<string, AsyncOperationHandle> _loadingHandles = new Dictionary<string, AsyncOperationHandle>();
+
+        // Addressables 资源句柄字典，用于正确释放资源
         private readonly Dictionary<string, IReleasableResource> _addressableHandles = new Dictionary<string, IReleasableResource>();
 
-        // 私有构造函数防止外部实例化
         public void Initialize()
         {
             SpriteLoader = SpriteLoader.Instance;
             SpriteLoader.Init();
-            // 默认使用Resources加载策略
-            _loadStrategy = new AddressablesLoadStrategy();
             _resourceCache = new ResourceCache();
         }
 
         /// <summary>
-        /// 设置资源加载策略
+        /// 缓存键：地址 + 资源类型，避免同地址不同 T 互相覆盖
         /// </summary>
-        /// <param name="strategy">资源加载策略</param>
-        public void SetLoadStrategy(IResourceLoadStrategy strategy)
+        private static string MakeCacheKey<T>(string path) where T : UnityEngine.Object
         {
-            _loadStrategy = strategy;
+            return MakeCacheKey(path, typeof(T));
+        }
+
+        private static string MakeCacheKey(string path, Type type)
+        {
+            return string.Concat(path, CacheKeySeparator, type.FullName);
+        }
+
+        private static bool TryGetPathFromCacheKey(string cacheKey, out string path)
+        {
+            int index = cacheKey.IndexOf(CacheKeySeparator);
+            if (index < 0)
+            {
+                path = cacheKey;
+                return false;
+            }
+
+            path = cacheKey.Substring(0, index);
+            return true;
+        }
+
+        private List<string> FindCacheKeysForPath(string path)
+        {
+            var keys = new List<string>();
+
+            foreach (var key in _referenceCounts.Keys)
+            {
+                if (TryGetPathFromCacheKey(key, out var keyPath) && keyPath == path)
+                {
+                    keys.Add(key);
+                }
+            }
+
+            foreach (var key in _addressableHandles.Keys)
+            {
+                if (TryGetPathFromCacheKey(key, out var keyPath) && keyPath == path && !keys.Contains(key))
+                {
+                    keys.Add(key);
+                }
+            }
+
+            return keys;
         }
 
         /// <summary>
-        /// 加载资源（同步方式）
+        /// 同步加载资源（内部使用 WaitForCompletion，可能造成卡顿，优先用 LoadAsync）
         /// </summary>
-        /// <typeparam name="T">资源类型</typeparam>
-        /// <param name="path">资源路径</param>
-        /// <returns>加载的资源</returns>
         public T Load<T>(string path) where T : UnityEngine.Object
         {
-            string actualPath = GetActualPath(path);
+            string cacheKey = MakeCacheKey<T>(path);
 
-            // 检查缓存中是否已存在且有效
-            if (_resourceCache.TryGetResource<T>(actualPath, out T cachedResource))
+            if (_resourceCache.TryGetResource<T>(cacheKey, out T cachedResource))
             {
-                _referenceCounts[actualPath]++;
+                AddReference(cacheKey);
                 return cachedResource;
             }
 
-            // 实际加载资源
-            T resource = _loadStrategy.Load<T>(actualPath);
-            if (resource != null)
+            AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(path);
+            T resource = handle.WaitForCompletion();
+
+            if (handle.Status == AsyncOperationStatus.Succeeded && resource != null)
             {
-                // 添加到缓存
-                _resourceCache.AddResource<T>(actualPath, resource);
-                _referenceCounts[actualPath] = 1;
-            }
-            else
-            {
-                Debug.LogError($"无法加载资源: {actualPath}");
+                _addressableHandles[cacheKey] = new AddressableResourceHandle<T>(handle);
+                _resourceCache.AddResource(cacheKey, resource);
+                _referenceCounts[cacheKey] = 1;
+                return resource;
             }
 
-            return resource;
-        }
-
-        /// <summary>
-        /// 预加载资源（同步方式）
-        /// </summary>
-        public ResourceRequest PreLoadRes<T>(string path) where T : UnityEngine.Object
-        {
-            string actualPath = GetActualPath(path);
-
-            // 检查缓存中是否已存在且有效
-            if (_resourceCache.TryGetResource<T>(actualPath, out T cachedResource))
+            Debug.LogError($"无法加载资源: {path}, 错误: {handle.OperationException}");
+            if (handle.IsValid())
             {
-                return null;
+                Addressables.Release(handle);
             }
-
-            return LoadAsync<T>(actualPath, null);
+            return null;
         }
 
         /// <summary>
         /// 异步加载资源
         /// </summary>
-        /// <typeparam name="T">资源类型</typeparam>
-        /// <param name="path">资源路径</param>
-        /// <param name="onComplete">加载完成回调</param>
-        /// <returns>资源加载请求</returns>
-        public ResourceRequest LoadAsync<T>(string path, Action<T> onComplete = null, Action<Exception> onFail = null) where T : UnityEngine.Object
+        public void LoadAsync<T>(
+            string path,
+            Action<T> onComplete = null,
+            Action<Exception> onFail = null,
+            CancellationToken cancellationToken = default) where T : UnityEngine.Object
         {
-            string actualPath = GetActualPath(path);
-
-            // 检查缓存中是否已存在且有效
-            if (_resourceCache.TryGetResource<T>(actualPath, out T cachedResource))
+            if (cancellationToken.IsCancellationRequested)
             {
-                _referenceCounts[actualPath]++;
+                onFail?.Invoke(new OperationCanceledException(cancellationToken));
+                return;
+            }
+
+            string cacheKey = MakeCacheKey<T>(path);
+
+            if (_resourceCache.TryGetResource<T>(cacheKey, out T cachedResource))
+            {
+                AddReference(cacheKey);
                 onComplete?.Invoke(cachedResource);
-                return null; // 返回null表示已从缓存加载
+                return;
             }
 
-            // 检查是否已经有相同的资源正在加载中
-            if (_pendingLoadRequests.ContainsKey(actualPath))
+            var pendingCallback = new PendingLoadCallback
             {
-                // 如果有，则将回调添加到待处理列表中，避免重复加载
-                _pendingLoadRequests[actualPath].Add((resource) => onComplete?.Invoke(resource as T));
-                return null;
+                OnComplete = resource => onComplete?.Invoke(resource as T),
+                OnFail = onFail
+            };
+
+            if (cancellationToken.CanBeCanceled)
+            {
+                pendingCallback.Registration = cancellationToken.Register(
+                    () => CancelPendingCallback(cacheKey, pendingCallback));
             }
 
-            // 创建待处理回调列表并添加当前回调
-            _pendingLoadRequests[actualPath] = new List<Action<UnityEngine.Object>> { (resource) => onComplete?.Invoke(resource as T) };
-
-            // 如果使用Addressables策略，特殊处理
-            if (_loadStrategy is AddressablesLoadStrategy)
+            if (_pendingLoadRequests.TryGetValue(cacheKey, out var pendingList))
             {
-                AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(actualPath);
-                handle.Completed += (op) =>
+                pendingList.Add(pendingCallback);
+                return;
+            }
+
+            _pendingLoadRequests[cacheKey] = new List<PendingLoadCallback> { pendingCallback };
+
+            AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(path);
+            _loadingHandles[cacheKey] = handle;
+
+            handle.Completed += op =>
+            {
+                // 已被取消并释放
+                if (!_loadingHandles.Remove(cacheKey))
                 {
-                    // 获取所有等待此资源加载完成的回调
-                    List<Action<UnityEngine.Object>> pendingCallbacks = null;
-                    if (_pendingLoadRequests.ContainsKey(actualPath))
+                    if (op.IsValid())
                     {
-                        pendingCallbacks = _pendingLoadRequests[actualPath];
-                        _pendingLoadRequests.Remove(actualPath);
+                        Addressables.Release(op);
                     }
-
-                    if (op.Status == AsyncOperationStatus.Succeeded)
-                    {
-                        T resource = op.Result;
-
-                        // 保存句柄以便后续释放
-                        _addressableHandles[actualPath] = new AddressableResourceHandle<T>(op);
-                        _referenceCounts[actualPath] = 1;
-
-                        // *** 添加这行关键代码 ***
-                        _resourceCache.AddResource<T>(actualPath, resource);
-
-                        // 执行所有等待的回调
-                        if (pendingCallbacks != null)
-                        {
-                            foreach (var callback in pendingCallbacks)
-                            {
-                                callback?.Invoke(resource);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogError($"Addressables加载资源失败: {actualPath}, 错误: {op.OperationException}");
-                        onFail?.Invoke(op.OperationException);
-                        // 执行所有等待的回调，传入null
-                        if (pendingCallbacks != null)
-                        {
-                            foreach (var callback in pendingCallbacks)
-                            {
-                                callback?.Invoke(null);
-                            }
-                        }
-                    }
-                };
-
-                return null;
-            }
-
-            // 异步加载资源 (Resources策略)
-            ResourceRequest request = _loadStrategy.LoadAsync<T>(actualPath, (resource) =>
-            {
-                // 获取所有等待此资源加载完成的回调
-                List<Action<UnityEngine.Object>> pendingCallbacks = null;
-                if (_pendingLoadRequests.ContainsKey(actualPath))
-                {
-                    pendingCallbacks = _pendingLoadRequests[actualPath];
-                    _pendingLoadRequests.Remove(actualPath);
+                    return;
                 }
 
-                if (resource != null)
+                List<PendingLoadCallback> pendingCallbacks = TakePendingCallbacks(cacheKey);
+
+                if (op.Status == AsyncOperationStatus.Succeeded)
                 {
-                    // 添加到缓存
-                    _resourceCache.AddResource<T>(actualPath, resource);
-                    _referenceCounts[actualPath] = 1;
+                    T resource = op.Result;
+                    _addressableHandles[cacheKey] = new AddressableResourceHandle<T>(op);
+                    _referenceCounts[cacheKey] = Math.Max(1, pendingCallbacks.Count);
+                    _resourceCache.AddResource(cacheKey, resource);
+
+                    foreach (var callback in pendingCallbacks)
+                    {
+                        callback.OnComplete?.Invoke(resource);
+                    }
                 }
                 else
                 {
-                    Debug.LogError($"无法异步加载资源: {actualPath}");
-                }
+                    Debug.LogError($"Addressables加载资源失败: {path}, 错误: {op.OperationException}");
 
-                // 执行所有等待的回调
-                if (pendingCallbacks != null)
-                {
-                    foreach (var callback in pendingCallbacks)
+                    if (op.IsValid())
                     {
-                        callback?.Invoke(resource);
+                        Addressables.Release(op);
                     }
-                }
-            });
 
-            return request;
+                    var exception = op.OperationException ?? new Exception($"Addressables加载资源失败: {path}");
+                    NotifyLoadFailed(pendingCallbacks, exception);
+                }
+            };
         }
 
         /// <summary>
-        /// 释放资源引用
+        /// 取消某个等待中的加载回调；若已无等待方则释放进行中的 Addressables 句柄
+        /// </summary>
+        private void CancelPendingCallback(string cacheKey, PendingLoadCallback callback)
+        {
+            if (!_pendingLoadRequests.TryGetValue(cacheKey, out var pendingList))
+            {
+                return;
+            }
+
+            if (!pendingList.Remove(callback))
+            {
+                return;
+            }
+
+            callback.DisposeRegistration();
+            callback.OnFail?.Invoke(new OperationCanceledException("资源加载已取消"));
+
+            if (pendingList.Count > 0)
+            {
+                return;
+            }
+
+            _pendingLoadRequests.Remove(cacheKey);
+
+            if (_loadingHandles.TryGetValue(cacheKey, out var loadingHandle))
+            {
+                _loadingHandles.Remove(cacheKey);
+                if (loadingHandle.IsValid())
+                {
+                    Addressables.Release(loadingHandle);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 释放资源引用（该地址下所有类型各减一）
         /// </summary>
         /// <param name="path">资源路径</param>
         public void Release(string path)
         {
-            string actualPath = GetActualPath(path);
-
-            if (_referenceCounts.ContainsKey(actualPath))
+            List<string> keys = FindCacheKeysForPath(path);
+            if (keys.Count == 0)
             {
-                _referenceCounts[actualPath]--;
-
-                // 当引用计数为0时，释放资源
-                if (_referenceCounts[actualPath] <= 0)
-                {
-                    ReleaseInternal(actualPath);
-                }
-            }
-
-            // 特殊处理Addressables资源
-            else if (_addressableHandles.ContainsKey(actualPath))
-            {
-                ReleaseInternal(actualPath);
-            }
-        }
-
-        /// <summary>
-        /// 内部资源释放方法
-        /// </summary>
-        /// <param name="path">资源路径</param>
-        private void ReleaseInternal(string path)
-        {
-            // 如果是Addressables资源，使用Addressables的方式释放
-            if (_addressableHandles.ContainsKey(path))
-            {
-                var handle = _addressableHandles[path];
-                handle.Release();
-                _addressableHandles.Remove(path);
-                _referenceCounts.Remove(path);
                 return;
             }
 
-            // 其他资源使用原有方式处理
-            if (_referenceCounts.ContainsKey(path))
+            foreach (string cacheKey in keys)
             {
-                _referenceCounts.Remove(path);
-                // 不主动从缓存中移除，因为其他地方可能还在使用
-                // 真正的卸载将通过UnloadUnusedAssets或系统自动完成
+                ReleaseByCacheKey(cacheKey);
             }
         }
 
         /// <summary>
-        /// 卸载未使用的资源（强制释放）
-        /// 类似于Resources.UnloadUnusedAssets()，但在ResourceManager层面进行更精细的控制
+        /// 释放指定类型的资源引用
+        /// </summary>
+        public void Release<T>(string path) where T : UnityEngine.Object
+        {
+            ReleaseByCacheKey(MakeCacheKey<T>(path));
+        }
+
+        private void ReleaseByCacheKey(string cacheKey)
+        {
+            if (_referenceCounts.TryGetValue(cacheKey, out int refCount))
+            {
+                refCount--;
+                if (refCount <= 0)
+                {
+                    ReleaseInternal(cacheKey);
+                }
+                else
+                {
+                    _referenceCounts[cacheKey] = refCount;
+                }
+            }
+            // 无引用计数但残留句柄时强制释放，避免泄漏
+            else if (_addressableHandles.ContainsKey(cacheKey))
+            {
+                ReleaseInternal(cacheKey);
+            }
+        }
+
+        /// <summary>
+        /// 增加资源引用计数（缓存命中或复用时）
+        /// </summary>
+        private void AddReference(string cacheKey)
+        {
+            if (_referenceCounts.TryGetValue(cacheKey, out int count))
+            {
+                _referenceCounts[cacheKey] = count + 1;
+            }
+            else
+            {
+                // 缓存与引用计数不同步时兜底，避免 KeyNotFoundException
+                _referenceCounts[cacheKey] = 1;
+            }
+        }
+
+        /// <summary>
+        /// 取出并移除指定缓存键的待处理回调列表
+        /// </summary>
+        private List<PendingLoadCallback> TakePendingCallbacks(string cacheKey)
+        {
+            if (_pendingLoadRequests.TryGetValue(cacheKey, out var pendingCallbacks))
+            {
+                _pendingLoadRequests.Remove(cacheKey);
+                foreach (var callback in pendingCallbacks)
+                {
+                    callback.DisposeRegistration();
+                }
+                return pendingCallbacks;
+            }
+
+            return new List<PendingLoadCallback>();
+        }
+
+        /// <summary>
+        /// 通知所有等待方加载失败：优先 OnFail；未提供时才回退 OnComplete(null)，避免双重回调
+        /// </summary>
+        private static void NotifyLoadFailed(List<PendingLoadCallback> pendingCallbacks, Exception exception)
+        {
+            foreach (var callback in pendingCallbacks)
+            {
+                if (callback.OnFail != null)
+                {
+                    callback.OnFail.Invoke(exception);
+                }
+                else
+                {
+                    callback.OnComplete?.Invoke(null);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 内部资源释放方法（仅 Addressables）
+        /// </summary>
+        private void ReleaseInternal(string cacheKey)
+        {
+            if (_addressableHandles.TryGetValue(cacheKey, out var handle))
+            {
+                handle.Release();
+                _addressableHandles.Remove(cacheKey);
+            }
+            else
+            {
+                Debug.LogWarning($"[ResourceManager] ReleaseInternal: 未找到 Addressables 句柄: {cacheKey.Replace(CacheKeySeparator, '|')}");
+            }
+
+            _referenceCounts.Remove(cacheKey);
+            _resourceCache.RemoveResource(cacheKey);
+        }
+
+        /// <summary>
+        /// 强制释放全部资源：取消预加载与进行中请求，Release 所有 Addressables 句柄并清空缓存。
+        /// </summary>
+        public void ClearAll()
+        {
+            CancelAllPreloads();
+
+            List<string> pendingKeys = _pendingLoadRequests.Keys.ToList();
+            var clearException = new OperationCanceledException("ResourceManager.ClearAll");
+            foreach (string cacheKey in pendingKeys)
+            {
+                List<PendingLoadCallback> callbacks = TakePendingCallbacks(cacheKey);
+                NotifyLoadFailed(callbacks, clearException);
+            }
+
+            foreach (var loadingHandle in _loadingHandles.Values)
+            {
+                if (loadingHandle.IsValid())
+                {
+                    Addressables.Release(loadingHandle);
+                }
+            }
+            _loadingHandles.Clear();
+
+            foreach (var handle in _addressableHandles.Values)
+            {
+                handle.Release();
+            }
+            _addressableHandles.Clear();
+            _referenceCounts.Clear();
+            _resourceCache.Clear();
+            _preloadTasks.Clear();
+
+            Debug.Log("[ResourceManager] ClearAll 完成");
+        }
+
+        /// <summary>
+        /// 卸载未使用的资源：释放引用计数归零的 Addressables 句柄，并清理无效句柄。
         /// </summary>
         public void UnloadUnusedAssets()
         {
-            // 清理引用计数为0的资源
             List<string> keysToRemove = new List<string>();
             foreach (var kvp in _referenceCounts)
             {
@@ -373,10 +486,8 @@ namespace Dragon.Resource
             foreach (string key in keysToRemove)
             {
                 ReleaseInternal(key);
-                _resourceCache.RemoveResource(key);
             }
 
-            // 清理无效的Addressables资源句柄
             List<string> invalidHandles = new List<string>();
             foreach (var kvp in _addressableHandles)
             {
@@ -389,59 +500,38 @@ namespace Dragon.Resource
             foreach (string key in invalidHandles)
             {
                 _addressableHandles.Remove(key);
-            }
-
-            // 调用Unity的资源卸载机制
-            Resources.UnloadUnusedAssets();
-        }
-
-        /// <summary>
-        /// 添加路径映射（为未来迁移做准备）
-        /// </summary>
-        /// <param name="logicalPath">逻辑路径</param>
-        /// <param name="physicalPath">物理路径</param>
-        public void AddPathMapping(string logicalPath, string physicalPath)
-        {
-            _pathMapping[logicalPath] = physicalPath;
-        }
-
-        /// <summary>
-        /// 获取实际资源路径
-        /// </summary>
-        /// <param name="logicalPath">逻辑路径</param>
-        /// <returns>实际路径</returns>
-        private string GetActualPath(string logicalPath)
-        {
-            return _pathMapping.ContainsKey(logicalPath) ? _pathMapping[logicalPath] : logicalPath;
-        }
-
-        /// <summary>
-        /// 预加载一组资源
-        /// </summary>
-        /// <param name="paths">资源路径数组</param>
-        public void PreloadResources(string[] paths)
-        {
-            foreach (string path in paths)
-            {
-                Load<UnityEngine.Object>(path);
+                _referenceCounts.Remove(key);
+                _resourceCache.RemoveResource(key);
             }
         }
 
         /// <summary>
-        /// 获取资源的引用计数
+        /// 获取资源的引用计数（该地址下所有类型合计）
         /// </summary>
-        /// <param name="path">资源路径</param>
-        /// <returns>引用计数</returns>
         public int GetReferenceCount(string path)
         {
-            string actualPath = GetActualPath(path);
-            return _referenceCounts.ContainsKey(actualPath) ? _referenceCounts[actualPath] : 0;
+            int total = 0;
+            foreach (string cacheKey in FindCacheKeysForPath(path))
+            {
+                if (_referenceCounts.TryGetValue(cacheKey, out int count))
+                {
+                    total += count;
+                }
+            }
+            return total;
+        }
+
+        /// <summary>
+        /// 获取指定类型资源的引用计数
+        /// </summary>
+        public int GetReferenceCount<T>(string path) where T : UnityEngine.Object
+        {
+            return _referenceCounts.TryGetValue(MakeCacheKey<T>(path), out int count) ? count : 0;
         }
 
         /// <summary>
         /// 获取当前缓存的资源数量
         /// </summary>
-        /// <returns>缓存资源数量</returns>
         public int GetCachedResourceCount()
         {
             return _resourceCache.GetCachedResourceCount();
@@ -450,7 +540,6 @@ namespace Dragon.Resource
         /// <summary>
         /// 验证所有缓存资源的有效性并清理无效资源
         /// </summary>
-        /// <returns>清理的资源数量</returns>
         public int ValidateAndCleanAllResources()
         {
             return _resourceCache.CleanInvalidResources();
@@ -459,168 +548,130 @@ namespace Dragon.Resource
         /// <summary>
         /// 获取资源管理器的内存使用概览
         /// </summary>
-        /// <returns>内存使用信息</returns>
         public ResourceManagerStats GetStats()
         {
             return new ResourceManagerStats
             {
                 TotalCachedResources = GetCachedResourceCount(),
-                TrackedReferenceCounts = _referenceCounts.Count,
-                PathMappings = _pathMapping.Count,
-                CurrentStrategy = _loadStrategy.GetType().Name
+                TrackedReferenceCounts = _referenceCounts.Count
             };
         }
 
         #region 资源预加载
-        // 预加载任务管理
+
         private readonly Dictionary<string, PreloadTaskInfo> _preloadTasks = new Dictionary<string, PreloadTaskInfo>();
-        private readonly Queue<string> _preloadQueue = new Queue<string>();
-        private int _maxConcurrentPreloads = 5; // 最大并发预加载数
-        private int _currentPreloadCount = 0;
-
-
-        /// <summary>
-        /// 设置最大并发预加载数量
-        /// </summary>
-        /// <param name="maxCount">最大并发数</param>
-        public void SetMaxConcurrentPreloads(int maxCount)
-        {
-            _maxConcurrentPreloads = Math.Max(1, maxCount);
-        }
+        private int _maxConcurrentPreloads = 5;
+        private CancellationTokenSource _preloadCts;
+        private static MethodInfo _preloadResourcesAsyncGenericMethod;
 
         /// <summary>
-        /// 获取预加载任务信息
+        /// 批量预加载资源（按运行时类型，异步，Semaphore 限流 + WhenAll）
         /// </summary>
-        /// <param name="path">资源路径</param>
-        /// <returns>预加载任务信息</returns>
-        public PreloadTaskInfo GetPreloadTaskInfo(string path)
+        public UniTask PreloadResourcesAsync(
+            string[] paths,
+            Type assetType,
+            Action<float> onProgress = null,
+            Action onComplete = null,
+            CancellationToken cancellationToken = default)
         {
-            string actualPath = GetActualPath(path);
-            return _preloadTasks.ContainsKey(actualPath) ? _preloadTasks[actualPath] : null;
-        }
-
-        /// <summary>
-        /// 获取所有预加载任务的总体进度
-        /// </summary>
-        /// <returns>总体进度(0-1)</returns>
-        public float GetOverallPreloadProgress()
-        {
-            if (_preloadTasks.Count == 0) return 1f;
-
-            float totalProgress = 0f;
-            foreach (var task in _preloadTasks.Values)
+            if (assetType == null)
             {
-                totalProgress += task.Progress;
+                assetType = typeof(UnityEngine.Object);
             }
-            return totalProgress / _preloadTasks.Count;
+
+            if (!typeof(UnityEngine.Object).IsAssignableFrom(assetType))
+            {
+                Debug.LogError($"[ResourceManager] 预加载类型无效: {assetType}");
+                onComplete?.Invoke();
+                return UniTask.CompletedTask;
+            }
+
+            if (_preloadResourcesAsyncGenericMethod == null)
+            {
+                _preloadResourcesAsyncGenericMethod = typeof(ResourceManager)
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                    .First(m => m.Name == nameof(PreloadResourcesAsync) && m.IsGenericMethodDefinition);
+            }
+
+            var genericMethod = _preloadResourcesAsyncGenericMethod.MakeGenericMethod(assetType);
+            return (UniTask)genericMethod.Invoke(
+                this,
+                new object[] { paths, onProgress, onComplete, cancellationToken });
         }
 
         /// <summary>
-        /// 批量预加载资源（异步）
+        /// 批量预加载资源（异步，Semaphore 限流 + WhenAll）
         /// </summary>
-        /// <param name="paths">资源路径数组</param>
-        /// <param name="onProgress">进度回调</param>
-        /// <param name="onComplete">完成回调</param>
-        /// <returns>UniTask对象</returns>
-        public async UniTask PreloadResourcesAsync<T>(string[] paths, Action<float> onProgress = null, Action onComplete = null) where T : UnityEngine.Object
+        public async UniTask PreloadResourcesAsync<T>(
+            string[] paths,
+            Action<float> onProgress = null,
+            Action onComplete = null,
+            CancellationToken cancellationToken = default) where T : UnityEngine.Object
         {
+            CancelAllPreloads();
+
             if (paths == null || paths.Length == 0)
             {
                 onComplete?.Invoke();
                 return;
             }
 
-            // 初始化预加载任务
-            foreach (string path in paths)
+            _preloadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            CancellationToken ct = _preloadCts.Token;
+
+            _preloadTasks.Clear();
+
+            string[] uniquePaths = paths
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Distinct()
+                .ToArray();
+
+            if (uniquePaths.Length == 0)
             {
-                string actualPath = GetActualPath(path);
-                if (!_preloadTasks.ContainsKey(actualPath))
+                onComplete?.Invoke();
+                return;
+            }
+
+            foreach (string path in uniquePaths)
+            {
+                _preloadTasks[path] = new PreloadTaskInfo
                 {
-                    _preloadTasks[actualPath] = new PreloadTaskInfo
+                    ResourcePath = path,
+                    Status = PreloadTaskStatus.Pending
+                };
+            }
+
+            int total = uniquePaths.Length;
+            int finished = 0;
+            Debug.Log($"开始预加载 {total} 个资源，最大并发数: {_maxConcurrentPreloads}");
+
+            using (var semaphore = new SemaphoreSlim(_maxConcurrentPreloads, _maxConcurrentPreloads))
+            {
+                UniTask[] tasks = uniquePaths.Select(path => PreloadOneAsync<T>(
+                    path,
+                    semaphore,
+                    ct,
+                    () =>
                     {
-                        ResourcePath = actualPath,
-                        Status = PreloadTaskStatus.Pending,
-                        Progress = 0f
-                    };
-                    _preloadQueue.Enqueue(actualPath);
+                        int done = Interlocked.Increment(ref finished);
+                        onProgress?.Invoke((float)done / total);
+                    })).ToArray();
+
+                try
+                {
+                    await UniTask.WhenAll(tasks);
+                }
+                catch (OperationCanceledException)
+                {
+                    Debug.LogWarning("预加载已取消");
                 }
             }
 
-            int totalTasks = _preloadQueue.Count;
-            Debug.Log($"开始预加载 {totalTasks} 个资源，最大并发数: {_maxConcurrentPreloads}");
-
-            // 持续处理预加载任务直到队列为空
-            while (_preloadQueue.Count > 0 || _currentPreloadCount > 0)
-            {
-                // 启动新的预加载任务直到达到最大并发数
-                while (_currentPreloadCount < _maxConcurrentPreloads && _preloadQueue.Count > 0)
-                {
-                    string path = _preloadQueue.Dequeue();
-                    _currentPreloadCount++;
-                    
-                    Debug.Log($"启动预加载任务: {path} (当前并发: {_currentPreloadCount})");
-
-                    // 使用 UniTask 替代 Task.Run
-                    UniTask preloadTask = UniTask.Create(async () =>
-                    {
-                        try
-                        {
-                            await PreloadSingleResourceAsync<T>(path, (progress) =>
-                            {
-                                // 更新单个任务进度
-                                if (_preloadTasks.ContainsKey(path))
-                                {
-                                    _preloadTasks[path].Progress = progress;
-                                }
-
-                                // 计算整体进度
-                                float overallProgress = GetOverallPreloadProgress();
-                                onProgress?.Invoke(overallProgress);
-                            });
-
-                            // 任务成功完成
-                            if (_preloadTasks.ContainsKey(path))
-                            {
-                                _preloadTasks[path].Status = PreloadTaskStatus.Completed;
-                                _preloadTasks[path].Progress = 1f;
-                            }
-                            
-                            Debug.Log($"预加载任务完成: {path}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"预加载资源失败: {path}, 错误: {ex.Message}");
-                            if (_preloadTasks.ContainsKey(path))
-                            {
-                                _preloadTasks[path].Status = PreloadTaskStatus.Failed;
-                                _preloadTasks[path].Error = ex;
-                            }
-                        }
-                        finally
-                        {
-                            _currentPreloadCount--;
-                            Debug.Log($"任务结束: {path} (当前并发: {_currentPreloadCount})");
-                        }
-                    });
-
-                    // 不需要等待，让任务并发执行
-                }
-
-                // 等待一帧再检查是否有新任务可以启动
-                await UniTask.DelayFrame(1);
-                
-                // 更新总体进度
-                float currentProgress = GetOverallPreloadProgress();
-                Debug.Log($"当前总体进度: {currentProgress:P0} ({_currentPreloadCount} 个任务进行中)");
-            }
-
-            // 验证所有任务都已完成
             int completedTasks = _preloadTasks.Values.Count(t => t.Status == PreloadTaskStatus.Completed);
             int failedTasks = _preloadTasks.Values.Count(t => t.Status == PreloadTaskStatus.Failed);
-            
-            Debug.Log($"预加载完成: 成功 {completedTasks}/{totalTasks}, 失败 {failedTasks}");
-            
-            if (failedTasks > 0)
+            Debug.Log($"预加载完成: 成功 {completedTasks}/{total}, 失败 {failedTasks}");
+
+            if (failedTasks > 0 && !ct.IsCancellationRequested)
             {
                 Debug.LogWarning("部分资源预加载失败，请检查日志获取详细信息");
             }
@@ -628,57 +679,127 @@ namespace Dragon.Resource
             onComplete?.Invoke();
         }
 
-        /// <summary>
-        /// 预加载单个资源（异步）
-        /// </summary>
-        /// <param name="path">资源路径</param>
-        /// <param name="onProgress">进度回调</param>
-        /// <returns>UniTask对象</returns>
-        private async UniTask PreloadSingleResourceAsync<T>(string path, Action<float> onProgress) where T : UnityEngine.Object
+        private async UniTask PreloadOneAsync<T>(
+            string path,
+            SemaphoreSlim semaphore,
+            CancellationToken ct,
+            Action onFinished) where T : UnityEngine.Object
         {
-            string actualPath = GetActualPath(path);
-
-            // 检查是否已在缓存中
-            if (_resourceCache.TryGetResource<T>(actualPath, out var cachedResource))
+            try
             {
-                _referenceCounts[actualPath]++;
-                onProgress?.Invoke(1f);
+                await semaphore.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                if (_preloadTasks.TryGetValue(path, out var cancelledInfo))
+                {
+                    cancelledInfo.Status = PreloadTaskStatus.Failed;
+                    cancelledInfo.Error = new OperationCanceledException("预加载任务被取消");
+                }
+                onFinished?.Invoke();
                 return;
             }
 
-            // 更新任务状态
-            if (_preloadTasks.ContainsKey(actualPath))
+            try
             {
-                _preloadTasks[actualPath].Status = PreloadTaskStatus.Loading;
+                ct.ThrowIfCancellationRequested();
+
+                if (_preloadTasks.TryGetValue(path, out var info))
+                {
+                    info.Status = PreloadTaskStatus.Loading;
+                }
+
+                await LoadAssetAsync<T>(path, ct);
+
+                if (_preloadTasks.TryGetValue(path, out info))
+                {
+                    info.Status = PreloadTaskStatus.Completed;
+                }
             }
-
-            // 执行实际的异步加载
-            UniTaskCompletionSource<bool> tcs = new UniTaskCompletionSource<bool>();
-
-            _ = LoadAsync<T>(actualPath,
-                (resource) =>
+            catch (OperationCanceledException)
+            {
+                if (_preloadTasks.TryGetValue(path, out var info))
                 {
-                    onProgress?.Invoke(1f);
-                    tcs.TrySetResult(true);
-                },
-                (exception) =>
+                    info.Status = PreloadTaskStatus.Failed;
+                    info.Error = new OperationCanceledException("预加载任务被取消");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"预加载资源失败: {path}, 错误: {ex.Message}");
+                if (_preloadTasks.TryGetValue(path, out var info))
                 {
-                    onProgress?.Invoke(1f);
-                    tcs.TrySetException(exception);
-                });
-
-            await tcs.Task;
+                    info.Status = PreloadTaskStatus.Failed;
+                    info.Error = ex;
+                }
+            }
+            finally
+            {
+                semaphore.Release();
+                onFinished?.Invoke();
+            }
         }
 
         /// <summary>
-        /// 取消所有预加载任务
+        /// 异步加载资源并返回结果（支持取消）
+        /// </summary>
+        public async UniTask<T> LoadAssetAsync<T>(string path, CancellationToken cancellationToken = default)
+            where T : UnityEngine.Object
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var tcs = new UniTaskCompletionSource<T>();
+            LoadAsync<T>(
+                path,
+                resource =>
+                {
+                    if (resource != null)
+                    {
+                        tcs.TrySetResult(resource);
+                    }
+                    else
+                    {
+                        tcs.TrySetException(new Exception($"资源加载返回空: {path}"));
+                    }
+                },
+                exception =>
+                {
+                    if (exception is OperationCanceledException || cancellationToken.IsCancellationRequested)
+                    {
+                        tcs.TrySetCanceled(cancellationToken);
+                    }
+                    else
+                    {
+                        tcs.TrySetException(exception ?? new Exception($"资源加载失败: {path}"));
+                    }
+                },
+                cancellationToken);
+
+            return await tcs.Task;
+        }
+
+        /// <summary>
+        /// 取消所有预加载任务（含进行中的 Addressables 加载）
         /// </summary>
         public void CancelAllPreloads()
         {
-            _preloadQueue.Clear();
-            _currentPreloadCount = 0;
+            if (_preloadCts != null)
+            {
+                try
+                {
+                    if (!_preloadCts.IsCancellationRequested)
+                    {
+                        _preloadCts.Cancel();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                }
 
-            // 标记所有任务为失败
+                _preloadCts.Dispose();
+                _preloadCts = null;
+            }
+
             foreach (var task in _preloadTasks.Values)
             {
                 if (task.Status == PreloadTaskStatus.Loading || task.Status == PreloadTaskStatus.Pending)
@@ -689,57 +810,6 @@ namespace Dragon.Resource
             }
         }
 
-        /// <summary>
-        /// 获取预加载统计信息
-        /// </summary>
-        /// <returns>统计信息</returns>
-        public ResourceManagerStats GetExtendedStats()
-        {
-            var baseStats = GetStats();
-            return new ResourceManagerStats
-            {
-                TotalCachedResources = baseStats.TotalCachedResources,
-                TrackedReferenceCounts = baseStats.TrackedReferenceCounts,
-                PathMappings = baseStats.PathMappings,
-                CurrentStrategy = baseStats.CurrentStrategy,
-                TotalPreloadTasks = _preloadTasks.Count,
-                CompletedPreloadTasks = _preloadTasks.Values.Count(t => t.Status == PreloadTaskStatus.Completed)
-            };
-        }
-
         #endregion
-
-        #region Internal Debug Support
-
-        /// <summary>
-        /// 为调试工具提供内部引用计数访问支持
-        /// </summary>
-        internal IDictionary<string, int> GetInternalReferenceCounts()
-        {
-            return _referenceCounts;
-        }
-
-        /// <summary>
-        /// 为调试工具提供内部资源缓存访问支持
-        /// </summary>
-        internal IResourceCache GetInternalResourceCache()
-        {
-            return _resourceCache;
-        }
-
-        /// <summary>
-        /// 为调试工具提供内部路径映射访问支持
-        /// </summary>
-        internal IDictionary<string, string> GetInternalPathMappings()
-        {
-            return _pathMapping;
-        }
-
-        #endregion
-
-        public bool CheckResourceValid<T>(string path) where T : UnityEngine.Object
-        {
-            return _resourceCache.TryGetResource<T>(path, out _);
-        }
     }
 }

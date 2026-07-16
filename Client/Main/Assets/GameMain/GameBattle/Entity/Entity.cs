@@ -117,7 +117,7 @@ public partial class Entity : FSMHostBase<EntityStateCode>
         }
 
         var loadTcs = new UniTaskCompletionSource<GameObject>();
-        _ = ResourceManager.Instance.LoadAsync<GameObject>(
+        ResourceManager.Instance.LoadAsync<GameObject>(
             prefabName,
             prefab => loadTcs.TrySetResult(prefab),
             exception => loadTcs.TrySetException(exception));

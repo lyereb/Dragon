@@ -73,7 +73,7 @@ namespace Dragon.Config
             UniTaskCompletionSource<ConfigFileList> tcs = new UniTaskCompletionSource<ConfigFileList>();
             
             // 直接使用回调，避免CS4014警告
-            _ = ResourceManager.Instance.LoadAsync<ConfigFileList>(
+            ResourceManager.Instance.LoadAsync<ConfigFileList>(
                 ConfigLoadConst.CONFIG_FILE_LIST_PATH,
                 (configList) => {
                     if (configList != null)
@@ -124,7 +124,7 @@ namespace Dragon.Config
             // 根据加载格式构建地址
             string address = ConfigLoadConst.CONFIG_ADDRESSABLE_PREFIX + fileName;
             
-            _ = ResourceManager.Instance.LoadAsync<TextAsset>(
+            ResourceManager.Instance.LoadAsync<TextAsset>(
                 address,
                 (asset) => {
                     if (asset != null)

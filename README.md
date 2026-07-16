@@ -1,6 +1,6 @@
 # Dragon
 
-基于 Unity 2022.3 LTS 的 2D 游戏客户端框架，核心入口为 `GameCenter`。启动时由 `GameCenterScript` 创建系统、异步初始化各模块，并在每帧驱动状态机、调度器与地图场景。
+基于 Unity 2022.3 LTS 的 2D 游戏客户端框架，核心入口为 `GameCenter`。启动时由 `GameCenterScript` 创建系统、以 **UniTask** 异步初始化各模块，并在每帧驱动状态机、终端与地图场景。定时调度统一使用 `UniTaskHelper`（已替代旧版 `SchedulerManager` / `CoroutinePool`）。
 
 **Unity 工程路径：** `Client/Main/`  
 **核心代码路径：** `Client/Main/Assets/GameMain/`
@@ -13,7 +13,7 @@
 Dragon/
 ├── Client/Main/          ← Unity 工程（场景、资源、GameMain 代码）
 ├── Config/               ← Luban 配置表源数据与生成脚本
-│   ├── Datas/            ← Excel 源表（item、map、entity、skill 等）
+│   ├── Datas/            ← Excel 源表（item、map、localization、entity、skill 等）
 │   ├── luban.conf        ← 生成配置（client / server / all）
 │   └── gen.bat / gen.sh  ← 生成脚本
 └── README.md
@@ -32,10 +32,10 @@ Dragon/
 | 目录 | 说明 |
 |------|------|
 | `Center/` | `GameCenter`、`GameCenterScript` 入口 |
-| `Library/` | 基础框架：资源、事件、协程、对象池、调度器、HTTP、DebugLog 等 |
+| `Library/` | 基础框架：资源、事件、对象池、Time（`UniTaskHelper`）、UI 工具、Transform、HTTP、DebugLog 等 |
 | `Logic/` | 游戏逻辑：状态机、输入、音频、道具、回合制 |
 | `GameBattle/` | 战斗与实体：地图场景、实体 FSM、移动/攻击控制、伤害结算、Y 轴排序渲染 |
-| `GameUI/` | UI 管理：主界面、弹窗、Toast、UI 工具组件 |
+| `GameUI/` | UI 管理：主界面、弹窗、Toast、道具界面 |
 | `GameData/` | 运行时用户数据与存档 |
 | `GameConfig/` | Luban 自动生成，勿手改 |
 | `Global/` | 全局常量、Addressables 标签名、伤害类型枚举 |
@@ -49,17 +49,17 @@ Boot 场景
   └─ GameCenterScript.Create()
        ├─ Awake / Start
        │    ├─ GameCenter.CreateSystem()     // 创建单例，不加载资源
-       │    └─ GameCenter.Initialize()       // 协程异步初始化
-       │         ├─ CoreInitialize           // 配置、资源、存档、DebugLog 等
+       │    └─ GameCenter.Initialize()       // UniTask 异步初始化（Forget）
+       │         ├─ CoreInitializeAsync      // 配置、资源预加载、存档等
        │         └─ LogicInitialize          // 本地化、音频、道具、地图等
-       └─ 每帧 Update / LateUpdate
+       └─ 每帧 Update / LateUpdate / FixedUpdate
 ```
 
 | 阶段 | 方法 | 说明 |
 |------|------|------|
 | 创建 | `GameCenter.CreateSystem()` | 实例化所有 Manager 单例 |
-| 初始化 | `GameCenter.Initialize()` | 加载配置表、预加载资源、读存档 |
-| 每帧 | `GameCenter.Update / LateUpdate` | 驱动状态机、调度器、终端、地图 |
+| 初始化 | `GameCenter.Initialize()` | 加载配置表、预加载资源、读存档；完成后切到 `GameStateCode.Main` |
+| 每帧 | `GameCenter.Update / LateUpdate` | 驱动状态机、终端、地图 |
 | 卸载 | `GameCenter.Uninitialize()` | 释放音频、实体、事件、DebugLog 等 |
 | 重置逻辑 | `GameCenter.ResetLogicSystem()` | 仅重建逻辑层（不重建 Core） |
 
@@ -72,7 +72,7 @@ Boot 场景
 ### 图例
 
 - **GC** = 已在 `GameCenter` 中创建并持有静态引用
-- **GC Init** = 在 `CoreInitialize` 或 `LogicInitialize` 中显式初始化
+- **GC Init** = 在 `CoreInitializeAsync` 或 `LogicInitialize` 中显式初始化
 - **独立** = 项目内存在，需自行获取单例或调用，未纳入 `GameCenter` 生命周期
 
 ---
@@ -128,7 +128,7 @@ GameCenter.ResourceManager.Release("icon_gold");
 | | |
 |---|---|
 | 命名空间 | `Dragon.Resource` |
-| GC / Init | 是 / 启动时在 `CoreInitialize` 中预加载 |
+| GC / Init | 是 / 启动时在 `CoreInitializeAsync` 中预加载 |
 | 概要 | 按 Addressables 标签批量预加载（启动时加载 Sprite / Prefab / UI 标签） |
 
 ```csharp
@@ -156,12 +156,14 @@ var map  = GameCenter.ConfigManager.Tables.Tbmap.Get(mapId);
 |---|---|
 | 命名空间 | `Dragon.Logic` |
 | GC / Init | 是 / `Initialize()` |
-| 概要 | 游戏顶层状态机（Init → Login → Main → Loading → Fight 等） |
+| 概要 | 游戏顶层状态机（Init → Update → PreLoad → Login → Main → Loading → Fight） |
 
 ```csharp
 GameCenter.StateManager.ChangeState(GameStateCode.Loading, new GameLoadingParam { MapId = 1 });
 bool inFight = GameCenter.StateManager.IsCurState(GameStateCode.Fight);
 ```
+
+状态实现目录：`Logic/GameState/State/`（`10_Init` … `60_Fight`）。
 
 ### EventManager
 
@@ -244,7 +246,7 @@ GameCenter.GameUIManager.CloseUI("ui_fight");
 |---|---|
 | 命名空间 | `Dragon.GameUI` |
 | GC / Init | 是 / 懒创建 |
-| 概要 | 弹窗栈管理，支持缓存复用、置顶 |
+| 概要 | 弹窗栈管理，支持缓存复用、置顶；关闭时若挂有 `UIDisplayEffect` 退场动效，会等动效播完再销毁/回收 |
 
 ```csharp
 GameCenter.PopupManager.OpenPopup("popup_confirm", new PopupConfirmData { /* ... */ });
@@ -296,20 +298,6 @@ await GameCenter.PoolManager.RegisterAsync("fx_hit", prewarm: 5);
 ```
 
 实现 `IPoolReset` 可在取出/归还时重置状态。
-
-### SchedulerManager
-
-| | |
-|---|---|
-| 命名空间 | `Dragon.Library` |
-| GC / Init | 是 / `Init()`，每帧 `Update` |
-| 概要 | 轻量任务调度：延迟、间隔、下一帧、每帧回调，支持按 owner 批量取消 |
-
-```csharp
-int id = GameCenter.SchedulerManager.Delay(1.5f, () => Debug.Log("延迟执行"), owner: this);
-GameCenter.SchedulerManager.Interval(0.5f, OnTick, owner: this);
-GameCenter.SchedulerManager.CancelByOwner(this);
-```
 
 ### DebugLogManager
 
@@ -431,7 +419,7 @@ var player = GameCenter.MapSceneManager.EntityManager.Entities; // 遍历实体
 | | |
 |---|---|
 | 命名空间 | `Dragon.Logic` |
-| 概要 | Cinemachine 虚拟相机，绑定玩家并在 X 轴阈值内跟随 |
+| 概要 | Cinemachine 虚拟相机，绑定玩家并在 X 轴受限内跟随 |
 
 通过 `GameCenter.MapSceneManager.CameraManager` 访问。
 
@@ -474,7 +462,7 @@ float damage = result.FinalDamage;
 |---|---|
 | 命名空间 | `Dragon.Logic` |
 | GC | **否**（`GameCenter` 中已注释，需手动使用） |
-| 概要 | 回合制整场调度：Prepare → Execute（依次 Turn）→ End，支持参与者增删与超时 |
+| 概要 | 回合制整场调度：Prepare → Execute（依次 Turn）→ End；阶段超时监控基于 `UniTaskHelper.Delay` |
 
 ```csharp
 var round = RoundManager.Instance;
@@ -488,16 +476,24 @@ round.NotifyRoundEndCompleted(participant);
 
 ## 五、基础库（Library，多数未纳入 GameCenter）
 
-### CoroutinePool
+### UniTaskHelper
 
 | | |
 |---|---|
 | 命名空间 | `Dragon.Library` |
-| 概要 | 全局协程宿主，`GameCenter.Initialize` 内部用于启动初始化协程 |
+| 位置 | `Assets/GameMain/Library/Time/UniTaskHelper.cs` |
+| 概要 | **项目统一定时调度**：Delay / Interval / NextFrame / EveryFrame；返回 `UniTaskHelper.Handle`，支持 `Cancel` / `CancelByOwner`；Owner 为 Unity 对象时销毁自动取消 |
+
+> 已替代并删除 `SchedulerManager`、`CoroutinePool`。业务侧请勿再引入自研帧调度或全局协程池。
 
 ```csharp
-CoroutinePool.AddTask(MyCoroutine());
-CoroutinePool.StopTask(routine);
+var handle = UniTaskHelper.Delay(1.5f, () => Debug.Log("延迟执行"), owner: this, useUnscaledTime: true);
+UniTaskHelper.Interval(0.5f, OnTick, owner: this);
+UniTaskHelper.NextFrame(() => RefreshUI(), owner: this);
+UniTaskHelper.EveryFrame(dt => UpdateLogic(dt), owner: this);
+
+handle.Cancel();
+UniTaskHelper.CancelByOwner(this);
 ```
 
 ### TimeUtils
@@ -517,11 +513,14 @@ float dt = TimeUtils.DeltaTime;   // 已乘速度系数
 | | |
 |---|---|
 | 命名空间 | `Dragon.Library` |
-| 概要 | 倒计时（基于 Scheduler）、秒表、时间格式化工具 |
+| 概要 | 倒计时 / 秒表（内部基于 `UniTaskHelper.Interval`，固定 1 秒 tick）、时间格式化工具 |
 
 ```csharp
 CountdownHelper.StartCountdown(60f, onTick: sec => UpdateLabel(sec), onCompleted: OnTimeUp, owner: this);
 CountdownHelper.CancelByOwner(this);
+
+StopwatchHelper.Start(onTick: elapsed => UpdateLabel(elapsed), owner: this);
+StopwatchHelper.CancelByOwner(this);
 ```
 
 ### FiniteStateMachine（FSM）
@@ -586,6 +585,16 @@ if (resp.IsSuccess) Debug.Log(resp.Text);
 long saveId = IDUtils.NewId();
 ```
 
+### ObjTransformHelper
+
+| | |
+|---|---|
+| 命名空间 | 全局 |
+| 位置 | `Assets/GameMain/Library/Transform/ObjTransformHelper.cs` |
+| 概要 | 场景物件本地 Transform 持续动效：上下/左右晃动、顺/逆时针旋转、呼吸缩放；可组合开关 |
+
+适用于指示箭头、提示物件等装饰物。挂在目标节点上，在 Inspector 勾选 `DisplacementMode`，或运行时调用 `SetModes` / `ConfigureXxx`。
+
 ### ResourceManagerDebugger
 
 | | |
@@ -619,7 +628,7 @@ long saveId = IDUtils.NewId();
 | 类型 | 基类 | 管理器 |
 |------|------|--------|
 | 主界面 / 单层 UI | `UIBase<TData>` | `GameUIManager` |
-| 弹窗 | `PopupBase<TData>` | `PopupManager` / `UIQueueManager` |
+| 弹窗 | `PopupBase` / `PopupBase<TData>` | `PopupManager` / `UIQueueManager` |
 | Toast | `UIToast` | `ToastManager` |
 | 本地化文本 | `LocalString` | 挂到 Text，随 `LocalManager.LanguageChanged` 刷新 |
 | Debug 日志弹窗 | `PopupDebugLog` | 通过 `DebugLogManager.OpenPopup()` 打开 |
@@ -628,11 +637,13 @@ long saveId = IDUtils.NewId();
 
 ### UI 工具组件
 
-挂载在 UI 预制体节点上，无需纳入 `GameCenter`：
+挂载在 UI 预制体节点上，无需纳入 `GameCenter`（位于 `Library/UI/`）：
 
 | 组件 | 说明 |
 |------|------|
-| `UIDisplayEffect` | Enable 时播放显示动效（如 ScaleIn），基于 DOTween |
+| `UIDisplayEffect` | Enable 时播放入场动效（ScaleIn / FadeIn）；可选退场（ScaleOut / FadeOut）；`PopupBase.Close` 会等待退场完成；可配开关窗 SFX |
+| `UIButtonEffect` | 按钮按下/释放动效（如 ScalePressBounce）与点击音效 |
+| `UITabGroup` / `UITabItem` | 通用页签组：Entries 配置页签与内容面板，支持默认选中与变更回调 |
 | `UIObjectStateMachine` | 两组对象列表在 Collapsed / Expanded 状态间切换 |
 | `UISpriteAnimator` | Image 帧动画播放，支持循环与 OnEnable 自动播放 |
 | `UITMPOutlineEffect` | TMP 描边/面/底纹效果，编辑器即时预览 |
@@ -662,6 +673,8 @@ flowchart TB
     Save --> FIO[FileIO]
     RM --> Addr[Addressables]
     Config[Config/ Excel] -->|Luban gen| Luban
+    TimeLib[UniTaskHelper] -.->|Delay/Interval| Round[RoundManager]
+    TimeLib -.->|Interval| CountDown[Countdown / Stopwatch]
 ```
 
 ---
@@ -671,8 +684,9 @@ flowchart TB
 1. 实现单例或 `Instance` 访问器，必要时实现 `Init` / `Shutdown` / `Clear`。
 2. 若需全局访问且参与启动流程，在 `GameCenter` 增加静态字段，并在 `NewCoreSystem` / `NewLogicSystem` 与对应 `Initialize` / `Uninitialize` 中注册。
 3. 若需每帧更新，在 `GameCenter.Update` 或 `LateUpdate` 中调用。
-4. 跨模块通信优先使用 `EventManager` + `EventConstDefine` 分段 ID，避免硬引用。
-5. 资源加载统一走 `ResourceManager`，配置读取走 `ConfigManager.Tables`。
+4. 定时任务统一使用 `UniTaskHelper`（或基于它的 `CountdownHelper` / `StopwatchHelper`），按 owner 取消，避免散落 `Invoke` / 裸协程。
+5. 跨模块通信优先使用 `EventManager` + `EventConstDefine` 分段 ID，避免硬引用。
+6. 资源加载统一走 `ResourceManager`，配置读取走 `ConfigManager.Tables`。
 
 ---
 
@@ -683,7 +697,7 @@ flowchart TB
 | 引擎 | Unity | 2022.3.62f3c1 LTS |
 | 渲染 | URP (2D) | 14.0.12 |
 | 资源 | Addressables | 1.22.3 |
-| 异步 | UniTask | Plugins 内置 |
+| 异步 / 定时 | UniTask + `UniTaskHelper` | Plugins 内置 |
 | 配置 | Luban | 1.1.1 |
 | 输入 | Unity Input System | 1.14.2 |
 | 相机 | Cinemachine | 2.10.7 |
@@ -691,3 +705,16 @@ flowchart TB
 | 文本 | TextMesh Pro + MiSans 字体 | 3.0.9 |
 | 序列化 | Newtonsoft.Json | 3.2.2 |
 | IDE | Cursor IDE 包 | 2.0.27 |
+
+---
+
+## 近期架构变更摘要
+
+| 变更 | 说明 |
+|------|------|
+| 删除 `SchedulerManager` | 定时调度改由 `UniTaskHelper` 承担，不再挂入 `GameCenter` 每帧 Update |
+| 删除 `CoroutinePool` | 初始化与异步流程改用 UniTask（`.Forget()` / `await`） |
+| `CountdownHelper` / `StopwatchHelper` | 内部改为 `UniTaskHelper.Interval` |
+| `RoundManager` 超时监控 | 改为 `UniTaskHelper.Delay`（仍未注册到 `GameCenter`） |
+| UI 动效增强 | `UIDisplayEffect` 支持退场；新增 `UIButtonEffect`、`UITabGroup` |
+| 场景装饰 | 新增 `ObjTransformHelper`（晃动 / 旋转 / 呼吸缩放） |
