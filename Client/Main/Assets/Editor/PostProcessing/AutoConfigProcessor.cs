@@ -322,13 +322,21 @@ namespace Dragon.Editor
         }
 
         /// <summary>
-        /// 打开仓库 Config/Datas 目录（相对工程根：../../Config/Datas）
+        /// 仓库 Config 根目录（相对工程根：../../Config）
+        /// </summary>
+        private static string GetConfigRootPath()
+        {
+            var projectRoot = Path.GetDirectoryName(Application.dataPath);
+            return Path.GetFullPath(Path.Combine(projectRoot, "..", "..", "Config"));
+        }
+
+        /// <summary>
+        /// 打开仓库 Config/Datas 目录
         /// </summary>
         [MenuItem("Tools/Config/Open Config Datas")]
         public static void OpenConfigDatasFolder()
         {
-            var projectRoot = Path.GetDirectoryName(Application.dataPath);
-            var configDatasPath = Path.GetFullPath(Path.Combine(projectRoot, "..", "..", "Config", "Datas"));
+            var configDatasPath = Path.Combine(GetConfigRootPath(), "Datas");
 
             if (!Directory.Exists(configDatasPath))
             {
@@ -346,6 +354,93 @@ namespace Dragon.Editor
                 UseShellExecute = true
             });
 #endif
+        }
+
+        /// <summary>
+        /// 执行与 Config/gen.bat 相同的 Luban 生成（跳过 pause，Win/Mac 通用）
+        /// 输出：GameConfig 代码 + AddressableAssets/Configs json
+        /// </summary>
+        [MenuItem("Tools/Config/Run Gen (Luban)")]
+        public static void RunConfigGen()
+        {
+            var configRoot = GetConfigRootPath();
+            var lubanDll = Path.Combine(configRoot, "Luban", "Luban.dll");
+            var lubanConf = Path.Combine(configRoot, "luban.conf");
+
+            if (!File.Exists(lubanDll))
+            {
+                EditorUtility.DisplayDialog("生成失败", $"找不到 Luban.dll:\n{lubanDll}", "确定");
+                return;
+            }
+
+            if (!File.Exists(lubanConf))
+            {
+                EditorUtility.DisplayDialog("生成失败", $"找不到 luban.conf:\n{lubanConf}", "确定");
+                return;
+            }
+
+            // 与 gen.bat 参数保持一致
+            var outputCodeDir = Path.GetFullPath(Path.Combine(configRoot, "..", "Client", "Main", "Assets", "GameMain", "GameConfig"));
+            var outputDataDir = Path.GetFullPath(Path.Combine(configRoot, "..", "Client", "Main", "Assets", "AddressableAssets", "Configs"));
+            var args =
+                $"\"{lubanDll}\" -t client -c cs-simple-json -d json --conf \"{lubanConf}\" " +
+                $"-x outputCodeDir=\"{outputCodeDir}\" -x outputDataDir=\"{outputDataDir}\"";
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("Config Gen", "正在运行 Luban 生成配置...", 0.5f);
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    Arguments = args,
+                    WorkingDirectory = configRoot,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = System.Diagnostics.Process.Start(psi))
+                {
+                    if (process == null)
+                    {
+                        EditorUtility.DisplayDialog("生成失败", "无法启动 dotnet 进程，请确认已安装 .NET SDK。", "确定");
+                        return;
+                    }
+
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrEmpty(stdout))
+                        Debug.Log($"[Config Gen]\n{stdout}");
+                    if (!string.IsNullOrEmpty(stderr))
+                        Debug.LogWarning($"[Config Gen]\n{stderr}");
+
+                    if (process.ExitCode != 0)
+                    {
+                        EditorUtility.DisplayDialog("生成失败", $"Luban 退出码: {process.ExitCode}\n详情见 Console。", "确定");
+                        return;
+                    }
+                }
+
+                AssetDatabase.Refresh();
+                Debug.Log($"✅ Config Gen 完成\nCode: {outputCodeDir}\nData: {outputDataDir}");
+                EditorUtility.DisplayDialog("生成完成", "配置已生成，并已刷新 AssetDatabase。", "确定");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                EditorUtility.DisplayDialog(
+                    "生成失败",
+                    $"执行失败: {e.Message}\n请确认已安装 .NET SDK 且 dotnet 在 PATH 中。",
+                    "确定");
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
         }
     }
 }
