@@ -320,5 +320,32 @@ namespace Dragon.Editor
             DestroyImmediate(processor);
             Debug.Log("✅ 快速处理完成");
         }
+
+        /// <summary>
+        /// 打开仓库 Config/Datas 目录（相对工程根：../../Config/Datas）
+        /// </summary>
+        [MenuItem("Tools/Config/Open Config Datas")]
+        public static void OpenConfigDatasFolder()
+        {
+            var projectRoot = Path.GetDirectoryName(Application.dataPath);
+            var configDatasPath = Path.GetFullPath(Path.Combine(projectRoot, "..", "..", "Config", "Datas"));
+
+            if (!Directory.Exists(configDatasPath))
+            {
+                EditorUtility.DisplayDialog("打开失败", $"Config Datas 目录不存在:\n{configDatasPath}", "确定");
+                return;
+            }
+
+            // Windows / macOS 分别用系统命令直接进入目录（RevealInFinder 只会在父目录选中）
+#if UNITY_EDITOR_OSX
+            System.Diagnostics.Process.Start("open", configDatasPath);
+#else
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = configDatasPath,
+                UseShellExecute = true
+            });
+#endif
+        }
     }
 }
