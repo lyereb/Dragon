@@ -361,7 +361,14 @@ namespace Dragon.Editor
         /// 输出：GameConfig 代码 + AddressableAssets/Configs json
         /// </summary>
         [MenuItem("Tools/Config/Run Gen (Luban)")]
-        public static void RunConfigGen()
+        public static void RunConfigGenMenu()
+        {
+            RunConfigGen(showDialogs: true);
+        }
+
+        /// <param name="showDialogs">手动菜单为 true；改表自动 Gen 为 false，只打日志</param>
+        /// <returns>是否生成成功</returns>
+        public static bool RunConfigGen(bool showDialogs = true)
         {
             var configRoot = GetConfigRootPath();
             var lubanDll = Path.Combine(configRoot, "Luban", "Luban.dll");
@@ -369,14 +376,22 @@ namespace Dragon.Editor
 
             if (!File.Exists(lubanDll))
             {
-                EditorUtility.DisplayDialog("生成失败", $"找不到 Luban.dll:\n{lubanDll}", "确定");
-                return;
+                var msg = $"找不到 Luban.dll:\n{lubanDll}";
+                if (showDialogs)
+                    EditorUtility.DisplayDialog("生成失败", msg, "确定");
+                else
+                    Debug.LogError($"[Config Gen] {msg}");
+                return false;
             }
 
             if (!File.Exists(lubanConf))
             {
-                EditorUtility.DisplayDialog("生成失败", $"找不到 luban.conf:\n{lubanConf}", "确定");
-                return;
+                var msg = $"找不到 luban.conf:\n{lubanConf}";
+                if (showDialogs)
+                    EditorUtility.DisplayDialog("生成失败", msg, "确定");
+                else
+                    Debug.LogError($"[Config Gen] {msg}");
+                return false;
             }
 
             // 与 gen.bat 参数保持一致
@@ -405,8 +420,12 @@ namespace Dragon.Editor
                 {
                     if (process == null)
                     {
-                        EditorUtility.DisplayDialog("生成失败", "无法启动 dotnet 进程，请确认已安装 .NET SDK。", "确定");
-                        return;
+                        var msg = "无法启动 dotnet 进程，请确认已安装 .NET SDK。";
+                        if (showDialogs)
+                            EditorUtility.DisplayDialog("生成失败", msg, "确定");
+                        else
+                            Debug.LogError($"[Config Gen] {msg}");
+                        return false;
                     }
 
                     var stdout = process.StandardOutput.ReadToEnd();
@@ -420,22 +439,32 @@ namespace Dragon.Editor
 
                     if (process.ExitCode != 0)
                     {
-                        EditorUtility.DisplayDialog("生成失败", $"Luban 退出码: {process.ExitCode}\n详情见 Console。", "确定");
-                        return;
+                        var msg = $"Luban 退出码: {process.ExitCode}\n详情见 Console。";
+                        if (showDialogs)
+                            EditorUtility.DisplayDialog("生成失败", msg, "确定");
+                        else
+                            Debug.LogError($"[Config Gen] {msg}");
+                        return false;
                     }
                 }
 
                 AssetDatabase.Refresh();
                 Debug.Log($"✅ Config Gen 完成\nCode: {outputCodeDir}\nData: {outputDataDir}");
-                EditorUtility.DisplayDialog("生成完成", "配置已生成，并已刷新 AssetDatabase。", "确定");
+                if (showDialogs)
+                    EditorUtility.DisplayDialog("生成完成", "配置已生成，并已刷新 AssetDatabase。", "确定");
+                return true;
             }
             catch (System.Exception e)
             {
                 Debug.LogException(e);
-                EditorUtility.DisplayDialog(
-                    "生成失败",
-                    $"执行失败: {e.Message}\n请确认已安装 .NET SDK 且 dotnet 在 PATH 中。",
-                    "确定");
+                if (showDialogs)
+                {
+                    EditorUtility.DisplayDialog(
+                        "生成失败",
+                        $"执行失败: {e.Message}\n请确认已安装 .NET SDK 且 dotnet 在 PATH 中。",
+                        "确定");
+                }
+                return false;
             }
             finally
             {
