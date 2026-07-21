@@ -6,6 +6,7 @@ using Dragon.Localization;
 using Dragon.Logic;
 using Dragon.Audio;
 using UnityEngine.UI;
+using TMPro;
 
 
 public class UILobbyData : UIBaseData
@@ -14,9 +15,11 @@ public class UILobbyData : UIBaseData
 
 public class UILobby : UIBase<UILobbyData>
 {
+    [SerializeField] private TextMeshProUGUI _testText;
     protected override void Init(UILobbyData data)
     {
         Debug.Log("UILobby Init");
+        LocalizationHelper.SetText(_testText, "3");
     }
 
     protected override void Show(UILobbyData data)

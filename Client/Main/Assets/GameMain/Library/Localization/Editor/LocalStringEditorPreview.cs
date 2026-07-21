@@ -10,7 +10,7 @@ namespace Dragon.Localization.Editor
     internal static class LocalStringEditorPreview
     {
         private const string LocalizationJsonPath = "Assets/AddressableAssets/Configs/dragon_tblocalization.json";
-        private const string PreviewLanguagePrefKey = "LocalStringUIHandler.PreviewLanguage";
+        private const string PreviewLanguagePrefKey = "LocalizationUIHandler.PreviewLanguage";
 
         private static Dictionary<int, JSONNode> _entriesById;
         private static string _cachedJsonGuid;

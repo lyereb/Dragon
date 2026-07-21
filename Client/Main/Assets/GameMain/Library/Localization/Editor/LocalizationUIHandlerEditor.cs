@@ -6,22 +6,22 @@ using UnityEngine;
 
 namespace Dragon.Localization.Editor
 {
-    [CustomEditor(typeof(LocalStringUIHandler))]
-    public class LocalStringUIHandlerEditor : UnityEditor.Editor
+    [CustomEditor(typeof(LocalizationUIHandler))]
+    public class LocalizationUIHandlerEditor : UnityEditor.Editor
     {
         private SerializedProperty _localizationKeyProp;
 
         [InitializeOnLoadMethod]
         private static void RegisterEditorRefreshCallback()
         {
-            LocalStringUIHandler.EditorRefreshCallback = RefreshHandler;
+            LocalizationUIHandler.EditorRefreshCallback = RefreshHandler;
         }
 
         private void OnEnable()
         {
             _localizationKeyProp = serializedObject.FindProperty("_localizationKey");
             TryMigrateKeyFromTextComponent();
-            RefreshHandler((LocalStringUIHandler)target);
+            RefreshHandler((LocalizationUIHandler)target);
         }
 
         public override void OnInspectorGUI()
@@ -47,7 +47,7 @@ namespace Dragon.Localization.Editor
             {
                 foreach (Object selected in targets)
                 {
-                    if (selected is LocalStringUIHandler handler)
+                    if (selected is LocalizationUIHandler handler)
                         RefreshHandler(handler);
                 }
             }
@@ -57,7 +57,7 @@ namespace Dragon.Localization.Editor
 
         private void DrawPreviewStatus()
         {
-            var handler = (LocalStringUIHandler)target;
+            var handler = (LocalizationUIHandler)target;
             string key = handler.LocalizationKey;
             if (string.IsNullOrEmpty(key))
                 return;
@@ -82,7 +82,7 @@ namespace Dragon.Localization.Editor
 
         private void TryMigrateKeyFromTextComponent()
         {
-            var handler = (LocalStringUIHandler)target;
+            var handler = (LocalizationUIHandler)target;
             if (!string.IsNullOrEmpty(handler.LocalizationKey))
                 return;
 
@@ -95,7 +95,7 @@ namespace Dragon.Localization.Editor
             EditorUtility.SetDirty(handler);
         }
 
-        private static void RefreshHandler(LocalStringUIHandler handler)
+        private static void RefreshHandler(LocalizationUIHandler handler)
         {
             if (handler == null || Application.isPlaying)
                 return;
@@ -127,7 +127,7 @@ namespace Dragon.Localization.Editor
             SceneView.RepaintAll();
         }
 
-        private static string GetSourceText(LocalStringUIHandler handler)
+        private static string GetSourceText(LocalizationUIHandler handler)
         {
             var textMeshProUGUI = handler.GetComponent<TextMeshProUGUI>();
             if (textMeshProUGUI != null && !string.IsNullOrEmpty(textMeshProUGUI.text))

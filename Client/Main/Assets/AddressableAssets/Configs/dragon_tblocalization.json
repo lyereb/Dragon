@@ -14,5 +14,13 @@
     "English": "LanguageTest",
     "Japanese": "LanguageTest",
     "Korean": "LanguageTest"
+  },
+  {
+    "id": 3,
+    "SimplifiedChinese": "进入战斗",
+    "TraditionalChinese": "进入战斗",
+    "English": "EnterBattle",
+    "Japanese": "EnterBattle",
+    "Korean": "EnterBattle"
   }
 ]
