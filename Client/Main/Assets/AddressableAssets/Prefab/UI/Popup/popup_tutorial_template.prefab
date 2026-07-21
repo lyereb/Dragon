@@ -222,10 +222,12 @@ MonoBehaviour:
   _pages:
   - pageRoot: {fileID: 7775402187780661317}
     holeTarget: {fileID: 9092585200351074544}
+    uiHoleObjectName: 
     worldHoleObjectName: 
     nextButton: {fileID: 4507074094308781657}
   - pageRoot: {fileID: 6881628734346891774}
     holeTarget: {fileID: 1106489821607608989}
+    uiHoleObjectName: 
     worldHoleObjectName: 
     nextButton: {fileID: 1583976779880476811}
   _holeMask: {fileID: 0}
@@ -857,6 +859,7 @@ GameObject:
   m_Component:
   - component: {fileID: 873402968447109428}
   - component: {fileID: 8979561150316150025}
+  - component: {fileID: 435068676422332626}
   m_Layer: 5
   m_Name: HoleProxy
   m_TagString: Untagged
@@ -900,6 +903,21 @@ MonoBehaviour:
   _worldRenderer: {fileID: 0}
   _screenPadding: {x: 0, y: 0}
   _hideWhenBehindCamera: 1
+--- !u!114 &435068676422332626
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7480736381093616179}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9aaac97628a8a6947b47638156876abd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _uiTarget: {fileID: 0}
+  _searchRoot: {fileID: 0}
+  _padding: {x: 0, y: 0}
 --- !u!1 &7775402187780661317
 GameObject:
   m_ObjectHideFlags: 0

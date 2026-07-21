@@ -20,10 +20,13 @@ public class PopupTutorialSlide : PopupBase<PopupTutorialSlideData>
         [Tooltip("该页根节点，翻页时显隐")]
         public GameObject pageRoot;
 
-        [Tooltip("镂空代理 RectTransform；镂场景对象时需挂 UIHoleWorldTargetFollower")]
+        [Tooltip("镂空代理 RectTransform；镂场景/下层 UI 时需挂对应 Follower")]
         public RectTransform holeTarget;
 
-        [Tooltip("场景镂空对象名；非空时在显示该页时自动绑定到 holeTarget 上的 Follower")]
+        [Tooltip("下层 UI 对象名或路径（如 BtnStart、ButtonList1/BtnStart）；需 holeTarget 挂 UIHoleUiTargetFollower")]
+        public string uiHoleObjectName;
+
+        [Tooltip("场景镂空对象名；非空时在显示该页时自动绑定到 holeTarget 上的 UIHoleWorldTargetFollower")]
         public string worldHoleObjectName;
 
         [Tooltip("本页下一步按钮；为空则不自动绑定")]
@@ -153,32 +156,51 @@ public class PopupTutorialSlide : PopupBase<PopupTutorialSlideData>
         Page currentPage = _currentIndex >= 0 && _currentIndex < _pages.Length
             ? _pages[_currentIndex]
             : null;
-        ApplyWorldHole(currentPage);
+        ApplyHoleFollowers(currentPage);
         ApplyHole(holeTarget);
     }
 
-    private void ApplyWorldHole(Page page)
+    private void ApplyHoleFollowers(Page page)
     {
         if (page?.holeTarget == null)
         {
             return;
         }
 
-        UIHoleWorldTargetFollower follower = page.holeTarget.GetComponent<UIHoleWorldTargetFollower>();
-        if (follower == null)
+        UIHoleUiTargetFollower uiFollower = page.holeTarget.GetComponent<UIHoleUiTargetFollower>();
+        UIHoleWorldTargetFollower worldFollower = page.holeTarget.GetComponent<UIHoleWorldTargetFollower>();
+
+        if (!string.IsNullOrEmpty(page.uiHoleObjectName))
         {
-            if (!string.IsNullOrEmpty(page.worldHoleObjectName))
+            worldFollower?.ClearTarget();
+            if (uiFollower == null)
             {
                 Debug.LogWarning(
-                    $"[PopupTutorialSlide] Page world hole requires UIHoleWorldTargetFollower on {page.holeTarget.name}.");
+                    $"[PopupTutorialSlide] Page UI hole requires UIHoleUiTargetFollower on {page.holeTarget.name}.");
+                return;
             }
 
+            uiFollower.SetTargetByName(page.uiHoleObjectName);
             return;
         }
 
-        if (string.IsNullOrEmpty(page.worldHoleObjectName))
+        if (!string.IsNullOrEmpty(page.worldHoleObjectName))
         {
-            follower.ClearTarget();
+            uiFollower?.ClearTarget();
+            ApplyWorldHole(page, worldFollower);
+            return;
+        }
+
+        uiFollower?.ClearTarget();
+        worldFollower?.ClearTarget();
+    }
+
+    private void ApplyWorldHole(Page page, UIHoleWorldTargetFollower follower)
+    {
+        if (follower == null)
+        {
+            Debug.LogWarning(
+                $"[PopupTutorialSlide] Page world hole requires UIHoleWorldTargetFollower on {page.holeTarget.name}.");
             return;
         }
 
