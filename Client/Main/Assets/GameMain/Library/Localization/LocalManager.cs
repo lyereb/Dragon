@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Dragon.Config;
 using cfg.dragon;
 
@@ -64,21 +63,10 @@ namespace Dragon.Localization
 
             localization cfg = ConfigManager.Instance.Tables?.Tblocalization?.Get(languageId);
 
-            if (cfg != null)
+            if (cfg != null &&
+                LocalizationLanguageMapper.TryGetLocalizedText(cfg, CurrentLanguage, out string text))
             {
-                switch (CurrentLanguage)
-                {
-                    case LanguageType.SimplifiedChinese:
-                        return cfg.SimplifiedChinese;
-                    case LanguageType.TraditionalChinese:
-                        return cfg.TraditionalChinese;
-                    case LanguageType.English:
-                        return cfg.English;
-                    case LanguageType.Japanese:
-                        return cfg.Japanese;
-                    case LanguageType.Korean:
-                        return cfg.Korean;
-                }
+                return text;
             }
 
             return key;

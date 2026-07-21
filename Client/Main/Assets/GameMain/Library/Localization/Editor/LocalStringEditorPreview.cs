@@ -35,7 +35,7 @@ namespace Dragon.Localization.Editor
             if (!entries.TryGetValue(languageId, out JSONNode entry))
                 return key;
 
-            string fieldName = GetLanguageFieldName(language);
+            string fieldName = LocalizationLanguageMapper.GetFieldName(language);
             JSONNode valueNode = entry[fieldName];
             return valueNode != null && valueNode.IsString ? valueNode.Value : key;
         }
@@ -72,23 +72,6 @@ namespace Dragon.Localization.Editor
 
             entries = _entriesById;
             return true;
-        }
-
-        private static string GetLanguageFieldName(LanguageType language)
-        {
-            switch (language)
-            {
-                case LanguageType.TraditionalChinese:
-                    return "TraditionalChinese";
-                case LanguageType.English:
-                    return "English";
-                case LanguageType.Japanese:
-                    return "Japanese";
-                case LanguageType.Korean:
-                    return "Korean";
-                default:
-                    return "SimplifiedChinese";
-            }
         }
 
         public static void InvalidateCache()
