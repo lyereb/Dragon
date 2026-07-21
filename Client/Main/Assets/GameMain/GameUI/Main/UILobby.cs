@@ -2,9 +2,11 @@ using UnityEngine;
 using System.Collections;
 using Dragon.GameUI;
 using Dragon.Library;
+using Dragon.Localization;
 using Dragon.Logic;
 using Dragon.Audio;
 using UnityEngine.UI;
+
 
 public class UILobbyData : UIBaseData
 {
@@ -48,5 +50,16 @@ public class UILobby : UIBase<UILobbyData>
         PopupManager.Instance.OpenPopup(
             "popup_tutorial_template",
             new PopupTutorialSlideData());
+    }
+
+    /// <summary>调试：在简体中文与英文之间切换。</summary>
+    public void OnToggleLanguage()
+    {
+        LocalManager localManager = GameCenter.LocalManager;
+        LanguageType nextLanguage = localManager.CurrentLanguage == LanguageType.English
+            ? LanguageType.SimplifiedChinese
+            : LanguageType.English;
+        localManager.SwitchLanguage(nextLanguage);
+        Debug.Log($"[Debug] Language switched to {nextLanguage}");
     }
 }

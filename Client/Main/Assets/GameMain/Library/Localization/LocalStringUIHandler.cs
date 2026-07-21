@@ -2,60 +2,95 @@ using Dragon.Localization;
 using TMPro;
 using UnityEngine;
 
+[ExecuteAlways]
 public class LocalStringUIHandler : MonoBehaviour
 {
+#if UNITY_EDITOR
+    public static System.Action<LocalStringUIHandler> EditorRefreshCallback;
+#endif
+
+    [SerializeField] private string _localizationKey = string.Empty;
+
     private TextMeshProUGUI textMeshProUGUI;
     private TextMeshPro textMeshPro;
     private LocalString localString;
 
+    public string LocalizationKey
+    {
+        get => _localizationKey;
+        set => SetText(value);
+    }
+
+    private void Awake()
+    {
+        CacheTextComponents();
+    }
+
+    private void OnValidate()
+    {
+        CacheTextComponents();
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            EditorRefreshCallback?.Invoke(this);
+        }
+#endif
+    }
+
     public void Start()
     {
-        textMeshProUGUI = GetComponent<TextMeshProUGUI>();
-        if(textMeshProUGUI == null) textMeshPro = GetComponent<TextMeshPro>();
+        CacheTextComponents();
         if (textMeshProUGUI == null && textMeshPro == null)
             return;
 
-        // UI界面文本多语言处理
-        if (localString == null &&textMeshProUGUI != null && textMeshProUGUI.text != null)
-            localString = textMeshProUGUI.text;
-        else if (localString == null && textMeshPro != null && textMeshPro.text != null)
-            localString = textMeshPro.text;
-        else if (localString == null)
-            localString = "";
-        
-        SetText(localString.Key);
+        if (string.IsNullOrEmpty(_localizationKey))
+        {
+            if (textMeshProUGUI != null && !string.IsNullOrEmpty(textMeshProUGUI.text))
+                _localizationKey = textMeshProUGUI.text;
+            else if (textMeshPro != null && !string.IsNullOrEmpty(textMeshPro.text))
+                _localizationKey = textMeshPro.text;
+        }
 
+        SetText(_localizationKey);
         LocalManager.Instance.LanguageChanged += RefershText;
     }
 
     public void OnDestroy()
     {
-        LocalManager.Instance.LanguageChanged -= RefershText;
+        if (Application.isPlaying)
+            LocalManager.Instance.LanguageChanged -= RefershText;
     }
 
-    // UI设置文本, UI界面配置语言表Id，Start的时候自动处理
+    private void CacheTextComponents()
+    {
+        if (textMeshProUGUI == null)
+            textMeshProUGUI = GetComponent<TextMeshProUGUI>();
+        if (textMeshProUGUI == null && textMeshPro == null)
+            textMeshPro = GetComponent<TextMeshPro>();
+    }
+
     private void SetText(string key)
     {
-        localString = key;
-
-        if (textMeshProUGUI != null)
-            textMeshProUGUI.text = localString.Value;
-        else if (textMeshPro != null)
-            textMeshPro.text = localString.Value;
+        _localizationKey = key ?? string.Empty;
+        localString = _localizationKey;
+        ApplyDisplayText(localString.Value);
     }
 
-    // 代码调用设置文本方法，限定传入参数类型为LocalString,防止文本key、value混淆
     public void SetText(LocalString localString)
     {
         SetText(localString.Key);
     }
 
-    // 语言切换时刷新文本,组件自动处理
     private void RefershText()
     {
+        ApplyDisplayText(localString.Value);
+    }
+
+    private void ApplyDisplayText(string text)
+    {
         if (textMeshProUGUI != null)
-            textMeshProUGUI.text = localString.Value;
+            textMeshProUGUI.text = text;
         else if (textMeshPro != null)
-            textMeshPro.text = localString.Value;
+            textMeshPro.text = text;
     }
 }

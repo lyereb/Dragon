@@ -6,5 +6,13 @@
     "English": "Test",
     "Japanese": "Test",
     "Korean": "Test"
+  },
+  {
+    "id": 2,
+    "SimplifiedChinese": "语言测试",
+    "TraditionalChinese": "语言测试",
+    "English": "LanguageTest",
+    "Japanese": "LanguageTest",
+    "Korean": "LanguageTest"
   }
 ]
