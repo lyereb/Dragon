@@ -1,0 +1,168 @@
+using System;
+using Dragon.GameUI;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PopupTutorialSlideData : PopupBaseData
+{
+}
+
+/// <summary>
+/// 教程分页弹窗：Inspector 配置 N 页，打开时只显示第一页；
+/// 每页可指定镂空目标与下一步按钮（按钮自动绑定翻页/关闭）。
+/// </summary>
+[RequireComponent(typeof(UIHoleMaskGraphic))]
+public class PopupTutorialSlide : PopupBase<PopupTutorialSlideData>
+{
+    [Serializable]
+    public class Page
+    {
+        [Tooltip("该页根节点，翻页时显隐")]
+        public GameObject pageRoot;
+
+        [Tooltip("镂空目标；为空则本页不镂空")]
+        public RectTransform holeTarget;
+
+        [Tooltip("本页下一步按钮；为空则不自动绑定")]
+        public Button nextButton;
+    }
+
+    [SerializeField] private Page[] _pages;
+    [SerializeField] private UIHoleMaskGraphic _holeMask;
+
+    private int _currentIndex;
+    private bool _buttonsBound;
+
+    private void Awake()
+    {
+        if (_holeMask == null)
+        {
+            _holeMask = GetComponent<UIHoleMaskGraphic>();
+        }
+
+        BindPageButtons();
+    }
+
+    protected override void OnOpen(PopupTutorialSlideData data)
+    {
+        _currentIndex = 0;
+        RefreshPages();
+    }
+
+    protected override void OnClose()
+    {
+        UnbindPageButtons();
+    }
+
+    /// <summary>
+    /// 显示下一页；已是最后一页则关闭弹窗。
+    /// </summary>
+    public void OnNextClick()
+    {
+        if (_pages == null || _pages.Length == 0)
+        {
+            Close();
+            return;
+        }
+
+        if (_currentIndex >= _pages.Length - 1)
+        {
+            Close();
+            return;
+        }
+
+        _currentIndex++;
+        RefreshPages();
+    }
+
+    private void BindPageButtons()
+    {
+        if (_buttonsBound || _pages == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _pages.Length; i++)
+        {
+            Page page = _pages[i];
+            if (page?.nextButton == null)
+            {
+                continue;
+            }
+
+            page.nextButton.onClick.RemoveListener(OnNextClick);
+            page.nextButton.onClick.AddListener(OnNextClick);
+        }
+
+        _buttonsBound = true;
+    }
+
+    private void UnbindPageButtons()
+    {
+        if (!_buttonsBound || _pages == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _pages.Length; i++)
+        {
+            Page page = _pages[i];
+            if (page?.nextButton == null)
+            {
+                continue;
+            }
+
+            page.nextButton.onClick.RemoveListener(OnNextClick);
+        }
+
+        _buttonsBound = false;
+    }
+
+    private void RefreshPages()
+    {
+        if (_pages == null)
+        {
+            ApplyHole(null);
+            return;
+        }
+
+        RectTransform holeTarget = null;
+        for (int i = 0; i < _pages.Length; i++)
+        {
+            Page page = _pages[i];
+            if (page == null)
+            {
+                continue;
+            }
+
+            bool isCurrent = i == _currentIndex;
+            if (page.pageRoot != null)
+            {
+                page.pageRoot.SetActive(isCurrent);
+            }
+
+            if (isCurrent)
+            {
+                holeTarget = page.holeTarget;
+            }
+        }
+
+        ApplyHole(holeTarget);
+    }
+
+    private void ApplyHole(RectTransform holeTarget)
+    {
+        if (_holeMask == null)
+        {
+            return;
+        }
+
+        if (holeTarget == null)
+        {
+            _holeMask.ClearHole();
+            return;
+        }
+
+        _holeMask.SetHoleTarget(holeTarget);
+    }
+}
