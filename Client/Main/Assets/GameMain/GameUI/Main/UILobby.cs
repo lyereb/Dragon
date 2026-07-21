@@ -42,4 +42,11 @@ public class UILobby : UIBase<UILobbyData>
     {
         GameCenter.DebugLogManager.OpenPopup();
     }
+
+    public void OnTestTut()
+    {
+        PopupManager.Instance.OpenPopup(
+            "popup_tutorial_template",
+            new PopupTutorialSlideData());
+    }
 }

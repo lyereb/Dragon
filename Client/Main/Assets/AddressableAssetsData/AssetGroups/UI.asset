@@ -47,6 +47,11 @@ MonoBehaviour:
     m_SerializedLabels:
     - UI
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 92c7e9a5e8ed5e84998166013e0b5544
+    m_Address: popup_tutorial_template
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: de42ce5b85dce3d42b4db885964267eb
     m_Address: main_fight
     m_ReadOnly: 0

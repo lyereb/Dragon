@@ -20,8 +20,11 @@ public class PopupTutorialSlide : PopupBase<PopupTutorialSlideData>
         [Tooltip("该页根节点，翻页时显隐")]
         public GameObject pageRoot;
 
-        [Tooltip("镂空目标；为空则本页不镂空")]
+        [Tooltip("镂空代理 RectTransform；镂场景对象时需挂 UIHoleWorldTargetFollower")]
         public RectTransform holeTarget;
+
+        [Tooltip("场景镂空对象名；非空时在显示该页时自动绑定到 holeTarget 上的 Follower")]
+        public string worldHoleObjectName;
 
         [Tooltip("本页下一步按钮；为空则不自动绑定")]
         public Button nextButton;
@@ -147,7 +150,53 @@ public class PopupTutorialSlide : PopupBase<PopupTutorialSlideData>
             }
         }
 
+        Page currentPage = _currentIndex >= 0 && _currentIndex < _pages.Length
+            ? _pages[_currentIndex]
+            : null;
+        ApplyWorldHole(currentPage);
         ApplyHole(holeTarget);
+    }
+
+    private void ApplyWorldHole(Page page)
+    {
+        if (page?.holeTarget == null)
+        {
+            return;
+        }
+
+        UIHoleWorldTargetFollower follower = page.holeTarget.GetComponent<UIHoleWorldTargetFollower>();
+        if (follower == null)
+        {
+            if (!string.IsNullOrEmpty(page.worldHoleObjectName))
+            {
+                Debug.LogWarning(
+                    $"[PopupTutorialSlide] Page world hole requires UIHoleWorldTargetFollower on {page.holeTarget.name}.");
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrEmpty(page.worldHoleObjectName))
+        {
+            follower.ClearTarget();
+            return;
+        }
+
+        Transform worldTarget = FindSceneObject(page.worldHoleObjectName);
+        if (worldTarget == null)
+        {
+            Debug.LogWarning($"[PopupTutorialSlide] Scene object not found: {page.worldHoleObjectName}");
+            follower.ClearTarget();
+            return;
+        }
+
+        follower.SetTarget(worldTarget);
+    }
+
+    private static Transform FindSceneObject(string objectName)
+    {
+        GameObject sceneObject = GameObject.Find(objectName);
+        return sceneObject != null ? sceneObject.transform : null;
     }
 
     private void ApplyHole(RectTransform holeTarget)
