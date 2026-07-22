@@ -32,13 +32,14 @@ Dragon/
 | 目录 | 说明 |
 |------|------|
 | `Center/` | `GameCenter`、`GameCenterScript` 入口 |
-| `Library/` | 基础框架：资源、事件、对象池、Time（`UniTaskHelper`）、UI 工具、Transform、HTTP、DebugLog 等 |
-| `Logic/` | 游戏逻辑：状态机、输入、音频、道具、回合制 |
+| `Library/` | 基础框架：资源、事件、对象池、Time（`UniTaskHelper`）、UI 工具、Transform、HTTP、DebugLog、配置 Editor 工具等 |
+| `Logic/` | 游戏逻辑：状态机、输入、音频、道具、**红点系统**、回合制 |
+| `Logic/RedDot/` | 红点树、Provider 模板、Registry 注册入口、UI 绑定组件 |
 | `GameBattle/` | 战斗与实体：地图场景、实体 FSM、移动/攻击控制、伤害结算、Y 轴排序渲染 |
 | `GameUI/` | UI 管理：主界面、弹窗、Toast、道具界面 |
 | `GameData/` | 运行时用户数据与存档 |
 | `GameConfig/` | Luban 自动生成，勿手改 |
-| `Global/` | 全局常量、Addressables 标签名、伤害类型枚举 |
+| `Global/` | 全局常量、战斗数值、伤害类型枚举 |
 
 ---
 
@@ -50,7 +51,7 @@ Boot 场景
        ├─ Awake / Start
        │    ├─ GameCenter.CreateSystem()     // 创建单例，不加载资源
        │    └─ GameCenter.Initialize()       // UniTask 异步初始化（Forget）
-       │         ├─ CoreInitializeAsync      // 配置、资源预加载、存档等
+       │         ├─ CoreInitializeAsync      // Addressables 准备、配置、资源预加载、存档等
        │         └─ LogicInitialize          // 本地化、音频、道具、地图等
        └─ 每帧 Update / LateUpdate / FixedUpdate
 ```
@@ -58,7 +59,7 @@ Boot 场景
 | 阶段 | 方法 | 说明 |
 |------|------|------|
 | 创建 | `GameCenter.CreateSystem()` | 实例化所有 Manager 单例 |
-| 初始化 | `GameCenter.Initialize()` | 加载配置表、预加载资源、读存档；完成后切到 `GameStateCode.Main` |
+| 初始化 | `GameCenter.Initialize()` | Addressables 初始化/Catalog/下载 → 加载配置表 → 预加载启动标签 → 读存档；完成后切到 `GameStateCode.Main` |
 | 每帧 | `GameCenter.Update / LateUpdate` | 驱动状态机、终端、地图 |
 | 卸载 | `GameCenter.Uninitialize()` | 释放音频、实体、事件、DebugLog 等 |
 | 重置逻辑 | `GameCenter.ResetLogicSystem()` | 仅重建逻辑层（不重建 Core） |
@@ -93,12 +94,25 @@ GameCenter.ConfigManager.Tables.Tbitem.Get(1001);
 GameCenter.StateManager.ChangeState(GameStateCode.Fight, param);
 ```
 
-### GlobalDefine / AddressablesLableNames
+### GlobalDefine
 
 | | |
 |---|---|
 | 位置 | `Assets/GameMain/Global/GlobalDefine.cs` |
-| 概要 | 主菜单场景名、战斗常量（重力、速度倍率）、Addressables 预加载标签名、`DamageType` 枚举 |
+| 概要 | 主菜单场景名、战斗常量（重力、速度倍率）、`DamageType` 枚举 |
+
+### AddressablesLabelNames
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Resource` |
+| 位置 | `Assets/GameMain/Library/Resource/AddressablesLabelNames.cs` |
+| 概要 | Addressables 标签常量（Sprite / Prefab / UI / Audio）及 `BootstrapEntries` 启动预加载配置 |
+
+```csharp
+// 追加启动预加载标签时，在此扩展 BootstrapEntries
+AddressablesLabelNames.BootstrapEntries
+```
 
 ---
 
@@ -123,17 +137,40 @@ GameCenter.ResourceManager.LoadAsync<Sprite>("icon_gold", sprite => { /* ... */ 
 GameCenter.ResourceManager.Release("icon_gold");
 ```
 
+### AddressablesRemoteService
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Resource` |
+| GC / Init | 是 / `CoreInitializeAsync` 中 `PrepareStartupResourcesAsync` |
+| 概要 | Addressables 远程资源生命周期：运行时初始化、Catalog 更新、按 key/标签下载依赖；未配置 Remote 时自动跳过 |
+
+```csharp
+// 启动流程（GameCenter 已调用）
+await GameCenter.AddressablesRemoteService.PrepareStartupResourcesAsync(
+    ResourcePreloadService.GetStartupDownloadKeys(), onProgress: p => { /* ... */ });
+
+// 单独使用
+await GameCenter.AddressablesRemoteService.InitializeAsync();
+bool updated = await GameCenter.AddressablesRemoteService.UpdateCatalogsAsync();
+long size = await GameCenter.AddressablesRemoteService.GetDownloadSizeAsync("UI");
+```
+
 ### ResourcePreloadService
 
 | | |
 |---|---|
 | 命名空间 | `Dragon.Resource` |
 | GC / Init | 是 / 启动时在 `CoreInitializeAsync` 中预加载 |
-| 概要 | 按 Addressables 标签批量预加载（启动时加载 Sprite / Prefab / UI 标签） |
+| 概要 | 按 Addressables 标签批量预加载；`GetStartupDownloadKeys()` 汇总 Config 标签 + `BootstrapEntries` 供下载 |
 
 ```csharp
+// 启动预加载（读取 AddressablesLabelNames.BootstrapEntries）
+await GameCenter.ResourcePreloadService.PreloadBootstrapResourcesAsync(onProgress: p => Debug.Log(p));
+
+// 按标签预加载
 await GameCenter.ResourcePreloadService.PreloadByLabelAsync<GameObject>(
-    "UI", onProgress: p => Debug.Log(p));
+    AddressablesLabelNames.UI, onProgress: p => Debug.Log(p));
 ```
 
 ### ConfigManager
@@ -331,7 +368,10 @@ GameCenter.DebugLogManager.Clear();
 GameCenter.LocalManager.SwitchLanguage(LanguageType.English);
 string text = GameCenter.LocalManager.GetLocalString("10001"); // key 为配置表 ID
 
-// UI 组件：LocalString + LocalStringUIHandler 自动刷新
+// UI 组件：LocalizationUIHandler 自动刷新（挂到 TMP 或代码绑定）
+LocalizationHelper.SetText(tmpText, "10001");
+
+// 编辑器：LocalStringEditorPreview 可在非 Play 模式预览文案
 ```
 
 ### TerminalManager
@@ -389,6 +429,70 @@ GameCenter.MapSceneManager.LoadSceneAndSpawnAsync(mapId: 1);
 // 场景加载完成后自动 InitEntitySpawnner → SpawnAllEntities
 var player = GameCenter.MapSceneManager.EntityManager.Entities; // 遍历实体
 ```
+
+### RedDotManager（红点系统）
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Logic` |
+| 位置 | `Assets/GameMain/Logic/RedDot/` |
+| GC / Init | **否**（独立单例；接入时在 `LogicInitialize` 调用 `Init()`） |
+| 概要 | 树形红点中枢：叶子 Provider 计算数值 → 非叶子聚合 → 派发 `EID_REDDOT_CHANGED`；UI 只负责展示 |
+
+**目录结构：**
+
+| 子目录/文件 | 说明 |
+|-------------|------|
+| `RedDotManager.cs` | 树注册、脏标记、向上聚合、事件派发 |
+| `RedDotRegistry.cs` | **集中注册入口**：非叶子 `RegisterNode`、叶子 `RegisterLeaf` |
+| `RedDotKey.cs` | key 常量（`.` 分段表示层级，如 `lobby.mail.system`） |
+| `Providers/RedDotExampleProvider.cs` | **Provider 模板**，复制后实现 `Evaluate()` |
+| `RedDotUI/RedDotView.cs` | UI 挂载：监听变化、显隐与计数展示 |
+| `RedDotUI/RedDotEnterClear.cs` | 入口点击消红点（`SeenUntilEnter` / `OncePerSession`） |
+
+**接入步骤：**
+
+```csharp
+// 1. RedDotKey.cs 增加 key 常量
+public const string LobbyShop = "lobby.shop";
+
+// 2. 复制 RedDotExampleProvider → Providers/RedDotShopProvider.cs，实现 Evaluate
+public RedDotValue Evaluate()
+{
+    int count = GameCenter.ItemManager.GetNewShopItemCount();
+    return count > 0 ? new RedDotValue(count) : RedDotValue.None;
+}
+
+// 3. RedDotRegistry.RegisterAll 中注册树
+manager.RegisterLeaf(RedDotKey.LobbyShop, RedDotKey.Lobby,
+    new RedDotShopProvider(RedDotKey.LobbyShop, RedDotRefreshMode.Dynamic,
+        MainEventDefine.EID_ITEM_INVENTORY_CHANGED));
+
+// 4. GameCenter.LogicInitialize 中初始化（接入后）
+RedDotManager.Instance.Init();
+
+// 5. UI 预制体挂 RedDotView，Inspector 填 key；按钮挂 RedDotEnterClear.OnClickClear
+```
+
+**核心 API：**
+
+```csharp
+RedDotManager.Instance.GetValue("lobby.mail");       // 查询聚合值
+RedDotManager.Instance.IsVisible("lobby");             // 是否显示
+RedDotManager.Instance.MarkDirty("lobby.mail.system"); // 业务数据变化后标记脏
+RedDotManager.Instance.MarkSeen("seen.tutorial");      // 点进即消
+RedDotManager.Instance.RefreshAll();                   // 登录/全量拉取后重算
+```
+
+**枚举说明：**
+
+| 类型 | 值 | 说明 |
+|------|-----|------|
+| `RedDotRefreshMode` | `Dynamic` | 数据变化即重算 |
+| | `SeenUntilEnter` | 进入界面或 `MarkSeen` 后消隐，PlayerPrefs 持久化 |
+| | `OncePerSession` | 本次进程内消隐，不持久化 |
+| `RedDotAggregateMode` | `Or` / `Sum` / `Max` | 非叶子对子节点的聚合方式 |
+| `RedDotDisplayStyle` | `DotOnly` / `CountOnly` / `DotAndCount` / `DotOrCount` | `RedDotView` 展示样式 |
 
 ---
 
@@ -602,6 +706,33 @@ long saveId = IDUtils.NewId();
 | 命名空间 | `Dragon.Resource` |
 | 概要 | 资源管理器调试辅助（统计缓存、引用计数等），开发期使用 |
 
+### SpriteLoader
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Resource` |
+| 位置 | `Assets/GameMain/Library/Resource/AssetsLoader/SpriteLoader.cs` |
+| 概要 | Image / SpriteRenderer 异步换图：先占位图再 Addressables 加载，避免闪烁 |
+
+```csharp
+SpriteLoader.Instance.Init(); // 加载占位 Sprite
+SpriteLoader.Instance.SetImage(image, "icon_gold");
+SpriteLoader.Instance.SetSpriteRenderer(spriteRenderer, "char_skin_01");
+```
+
+### ConfigDatasAutoGenWatcher / AutoConfigProcessor（Editor）
+
+| | |
+|---|---|
+| 命名空间 | `Dragon.Editor` |
+| 位置 | `Assets/GameMain/Library/Config/Editor/` |
+| 概要 | 配置表 Editor 工具：`ConfigDatasAutoGenWatcher` 监听 `Config/Datas/` xlsx 变更并防抖触发 Luban Gen；`AutoConfigProcessor` 窗口扫描配置并维护 `ConfigFileList` |
+
+```
+Tools/Config/Auto Gen On Datas Change   ← 开关 xlsx 保存后自动 gen
+Tools/Config/Auto Config Processor      ← 配置清单维护窗口
+```
+
 ---
 
 ## 六、配置与数据（GameConfig / GameData）
@@ -617,7 +748,7 @@ long saveId = IDUtils.NewId();
 
 查表统一入口：`GameCenter.ConfigManager.Tables`（须等待 `ConfigManager.Init()` 完成）。
 
-配置表修改流程：编辑 `Config/Datas/` 下 Excel → 运行 `Config/gen.bat` → 重新导入 Unity。
+配置表修改流程：编辑 `Config/Datas/` 下 Excel → 运行 `Config/gen.bat`（或开启 `Tools/Config/Auto Gen On Datas Change`）→ 重新导入 Unity。
 
 ---
 
@@ -630,7 +761,8 @@ long saveId = IDUtils.NewId();
 | 主界面 / 单层 UI | `UIBase<TData>` | `GameUIManager` |
 | 弹窗 | `PopupBase` / `PopupBase<TData>` | `PopupManager` / `UIQueueManager` |
 | Toast | `UIToast` | `ToastManager` |
-| 本地化文本 | `LocalString` | 挂到 Text，随 `LocalManager.LanguageChanged` 刷新 |
+| 本地化文本 | `LocalizationUIHandler` + `LocalizationHelper` | 挂到 TMP 或代码一行绑定，随 `LocalManager.LanguageChanged` 刷新 |
+| 红点展示 | `RedDotView` | 绑定 `RedDotKey`，监听 `EID_REDDOT_CHANGED` 自动刷新 |
 | Debug 日志弹窗 | `PopupDebugLog` | 通过 `DebugLogManager.OpenPopup()` 打开 |
 
 预制体通过 Addressables 地址加载，地址字符串通常与资源名一致（如 `"ui_lobby"`、`"popup_confirm"`）。
@@ -647,6 +779,19 @@ long saveId = IDUtils.NewId();
 | `UIObjectStateMachine` | 两组对象列表在 Collapsed / Expanded 状态间切换 |
 | `UISpriteAnimator` | Image 帧动画播放，支持循环与 OnEnable 自动播放 |
 | `UITMPOutlineEffect` | TMP 描边/面/底纹效果，编辑器即时预览 |
+| `UIHoleMaskGraphic` | 全屏半透明遮罩 + 圆角矩形镂空（改 Mesh，无自定义 Shader） |
+| `UIHoleUiTargetFollower` | 按 UI 目标同步镂空代理 Rect，供 `UIHoleMaskGraphic` 跟随 |
+| `UIHoleWorldTargetFollower` | 世界坐标目标转屏幕镂空，供引导/教程高亮 |
+| `RedDotView` | 红点显隐与计数（见 Logic/RedDot） |
+| `RedDotEnterClear` | 按钮点击标记已读，配合 `SeenUntilEnter` / `OncePerSession` |
+
+**引导/教程镂空示例：**
+
+```
+PopupTutorialSlide
+  └─ UIHoleMaskGraphic（全屏遮罩）
+       └─ UIHoleUiTargetFollower（ProxyRect → 跟随目标按钮）
+```
 
 ---
 
@@ -659,12 +804,14 @@ flowchart TB
     GC --> Core[Core 内核]
     GC --> Logic[Logic 逻辑]
     Core --> RM[ResourceManager]
+    Core --> ARS[AddressablesRemoteService]
     Core --> CM[ConfigManager]
     Core --> EM[EventManager]
     Core --> DM[GameDataManager]
     Core --> DLM[DebugLogManager]
     Core --> UI[GameUIManager / Popup / Toast]
     Logic --> MSM[MapSceneManager]
+    Logic -.-> RDM[RedDotManager]
     MSM --> EntM[EntityManager]
     MSM --> CamM[CameraManager]
     MSM --> Combat[CombatDamageSettlement]
@@ -687,6 +834,7 @@ flowchart TB
 4. 定时任务统一使用 `UniTaskHelper`（或基于它的 `CountdownHelper` / `StopwatchHelper`），按 owner 取消，避免散落 `Invoke` / 裸协程。
 5. 跨模块通信优先使用 `EventManager` + `EventConstDefine` 分段 ID，避免硬引用。
 6. 资源加载统一走 `ResourceManager`，配置读取走 `ConfigManager.Tables`。
+7. 红点接入：在 `RedDotKey` 定义 key → 复制 `RedDotExampleProvider` 实现 → `RedDotRegistry` 注册 → `RedDotManager.Init()` → UI 挂 `RedDotView`。
 
 ---
 
@@ -718,3 +866,10 @@ flowchart TB
 | `RoundManager` 超时监控 | 改为 `UniTaskHelper.Delay`（仍未注册到 `GameCenter`） |
 | UI 动效增强 | `UIDisplayEffect` 支持退场；新增 `UIButtonEffect`、`UITabGroup` |
 | 场景装饰 | 新增 `ObjTransformHelper`（晃动 / 旋转 / 呼吸缩放） |
+| **红点系统模板** | 新增 `Logic/RedDot/`：`RedDotManager` 树聚合 + `RedDotExampleProvider` 模板 + `RedDotRegistry` 注册 + `RedDotView` / `RedDotEnterClear` UI 绑定 |
+| `AddressablesRemoteService` | 纳入 `GameCenter` Core；启动时 Catalog 更新与依赖下载，本地资源自动跳过 |
+| `AddressablesLabelNames` | 从 `GlobalDefine` 迁至 `Library/Resource/`，`BootstrapEntries` 统一配置启动预加载 |
+| 引导镂空 | 新增 `UIHoleMaskGraphic` + `UIHoleUiTargetFollower` / `UIHoleWorldTargetFollower` |
+| 本地化 | `LocalizationUIHandler` + `LocalizationHelper` 替代旧 `LocalStringUIHandler`；Editor 预览 `LocalStringEditorPreview` |
+| 配置 Editor | `ConfigDatasAutoGenWatcher`（xlsx 变更自动 Gen）、`AutoConfigProcessor`（配置清单窗口） |
+| `SpriteLoader` | Image / SpriteRenderer 异步换图占位加载 |
