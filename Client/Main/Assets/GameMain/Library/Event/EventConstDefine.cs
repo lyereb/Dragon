@@ -33,7 +33,9 @@
     {
         //基础
         private const int EID_BASE = EventConstDefine.EVENT_UI_BASE_ID;
-        public const int EID_UI_TIMER_UPDATE_EVENT = EID_BASE + 1;
+
+        /// <summary>红点数值变化；param 为 <see cref="Dragon.Logic.RedDotChangedEventParam"/>。</summary>
+        public const int EID_REDDOT_CHANGED = EID_BASE + 1;
     }
 
     /// <summary>
