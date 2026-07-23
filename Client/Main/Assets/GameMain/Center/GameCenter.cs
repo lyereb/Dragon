@@ -43,7 +43,6 @@ namespace Dragon.Library
         public static AudioManager AudioManager = null;
         public static ItemManager ItemManager = null;
         public static MapSceneManager MapSceneManager = null;
-        // public static RoundManager RoundManager = null;
         #endregion
 
         #region //初始化以及卸载处理
@@ -222,7 +221,6 @@ namespace Dragon.Library
             AudioManager = AudioManager.Instance;
             ItemManager = ItemManager.Instance;
             MapSceneManager = MapSceneManager.Instance;
-            // RoundManager = RoundManager.Instance;
             Debug.Log("NeLogicSystem Finished!!");
         }
         //游戏中心进行初始化处理
@@ -234,7 +232,6 @@ namespace Dragon.Library
             AudioManager.Init();
             ItemManager.Init();
             MapSceneManager.Init();
-            // RoundManager.Init();
             Debug.Log("GameCenter End LogicInitialize!");
         }
 
@@ -245,7 +242,6 @@ namespace Dragon.Library
             AudioManager.Shutdown();
             ItemManager.Clear();
             MapSceneManager.Clear();
-            // RoundManager.Clear();
         }
         #endregion
 

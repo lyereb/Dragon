@@ -33,7 +33,7 @@ Dragon/
 |------|------|
 | `Center/` | `GameCenter`、`GameCenterScript` 入口 |
 | `Library/` | 基础框架：资源、事件、对象池、Time（`UniTaskHelper`）、UI 工具、Transform、HTTP、DebugLog、配置 Editor 工具等 |
-| `Logic/` | 游戏逻辑：状态机、输入、音频、道具、**红点系统**、回合制 |
+| `Logic/` | 游戏逻辑：状态机、输入、音频、道具、**红点系统** |
 | `Logic/RedDot/` | 红点树、Provider 模板、Registry 注册入口、UI 绑定组件 |
 | `GameBattle/` | 战斗与实体：地图场景、实体 FSM、移动/攻击控制、伤害结算、Y 轴排序渲染 |
 | `GameUI/` | UI 管理：主界面、弹窗、Toast、道具界面 |
@@ -560,22 +560,6 @@ float damage = result.FinalDamage;
 
 挂在角色或场景物件上；渲染器在子节点时，指定 `_sortTransform` 为逻辑位置节点。
 
-### RoundManager
-
-| | |
-|---|---|
-| 命名空间 | `Dragon.Logic` |
-| GC | **否**（`GameCenter` 中已注释，需手动使用） |
-| 概要 | 回合制整场调度：Prepare → Execute（依次 Turn）→ End；阶段超时监控基于 `UniTaskHelper.Delay` |
-
-```csharp
-var round = RoundManager.Instance;
-round.Init();
-round.TryAddParticipant(participant);
-round.StartRound(RoundType.Battle);
-round.NotifyRoundEndCompleted(participant);
-```
-
 ---
 
 ## 五、基础库（Library，多数未纳入 GameCenter）
@@ -820,8 +804,7 @@ flowchart TB
     Save --> FIO[FileIO]
     RM --> Addr[Addressables]
     Config[Config/ Excel] -->|Luban gen| Luban
-    TimeLib[UniTaskHelper] -.->|Delay/Interval| Round[RoundManager]
-    TimeLib -.->|Interval| CountDown[Countdown / Stopwatch]
+    TimeLib[UniTaskHelper] -.->|Interval| CountDown[Countdown / Stopwatch]
 ```
 
 ---
@@ -863,7 +846,7 @@ flowchart TB
 | 删除 `SchedulerManager` | 定时调度改由 `UniTaskHelper` 承担，不再挂入 `GameCenter` 每帧 Update |
 | 删除 `CoroutinePool` | 初始化与异步流程改用 UniTask（`.Forget()` / `await`） |
 | `CountdownHelper` / `StopwatchHelper` | 内部改为 `UniTaskHelper.Interval` |
-| `RoundManager` 超时监控 | 改为 `UniTaskHelper.Delay`（仍未注册到 `GameCenter`） |
+| 删除 `RoundManager` | 移除 `Logic/Round/` 回合制调度模块及相关类型 |
 | UI 动效增强 | `UIDisplayEffect` 支持退场；新增 `UIButtonEffect`、`UITabGroup` |
 | 场景装饰 | 新增 `ObjTransformHelper`（晃动 / 旋转 / 呼吸缩放） |
 | **红点系统模板** | 新增 `Logic/RedDot/`：`RedDotManager` 树聚合 + `RedDotExampleProvider` 模板 + `RedDotRegistry` 注册 + `RedDotView` / `RedDotEnterClear` UI 绑定 |
