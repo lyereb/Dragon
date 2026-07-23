@@ -110,11 +110,14 @@ namespace Dragon.GameUI
             return !IsPointInsideRoundedRect(localPoint, holeMin, holeMax, radius);
         }
 
+#if UNITY_EDITOR
         protected override void Reset()
         {
+            base.Reset();
             color = new Color(0f, 0f, 0f, 0.7f);
             raycastTarget = true;
         }
+#endif
 
         protected override void OnEnable()
         {
