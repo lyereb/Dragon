@@ -29,7 +29,7 @@
     ],
     "width": 1,
     "depth": 1,
-    "isRigidBody": false,
+    "isRigidBody": true,
     "prefabName": "Enemy_001"
   }
 ]

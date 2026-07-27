@@ -38,7 +38,8 @@ public class EntityMovementController
             _isRunBoostActive = true;
         }
 
-        Vector3 moveDirection = new Vector3(moveInput.x, 0f, moveInput.y);
+        // Logic plane: X = horizontal, Y = depth.
+        Vector3 moveDirection = new Vector3(moveInput.x, moveInput.y, 0f);
         if (moveDirection.sqrMagnitude > 1f)
         {
             moveDirection.Normalize();
@@ -52,7 +53,7 @@ public class EntityMovementController
         }
 
         bool jumpPressed = inputProvider.GetJumpInput(entity);
-        bool isGrounded = currentLogicPos.y <= 0f;
+        bool isGrounded = currentLogicPos.z <= 0f;
         float verticalVelocity = _verticalVelocity;
         if (isGrounded)
         {
@@ -68,10 +69,10 @@ public class EntityMovementController
 
         float gravity = GlobalDefine.BattleGravity > 0f ? GlobalDefine.BattleGravity : 0f;
         verticalVelocity -= gravity * dt;
-        float nextY = currentLogicPos.y + verticalVelocity * dt;
-        if (nextY <= 0f)
+        float nextZ = currentLogicPos.z + verticalVelocity * dt;
+        if (nextZ <= 0f)
         {
-            nextY = 0f;
+            nextZ = 0f;
             if (verticalVelocity < 0f)
             {
                 verticalVelocity = 0f;
@@ -83,8 +84,8 @@ public class EntityMovementController
         UpdateCharacterState(entity, movementState);
 
         float nextX = currentLogicPos.x + moveDelta.x;
-        float nextZ = ClampDepthInMapBoundary(entity, currentLogicPos.z + moveDelta.z);
-        ResolveBlockByRigidbodies(entity, currentLogicPos, ref nextX, ref nextZ);
+        float nextY = ClampDepthInMapBoundary(entity, currentLogicPos.y + moveDelta.y);
+        ResolveBlockByRigidbodies(entity, currentLogicPos, ref nextX, ref nextY);
         entity.Data.Position.SetLogicPosition(nextX, nextY, nextZ);
     }
 
@@ -126,35 +127,35 @@ public class EntityMovementController
         _lastMovementState = movementState;
     }
 
-    private float ClampDepthInMapBoundary(Entity entity, float targetZ)
+    private float ClampDepthInMapBoundary(Entity entity, float targetY)
     {
         MapData mapData = MapSceneManager.Instance.MapData;
         if (mapData == null)
         {
-            return targetZ;
+            return targetY;
         }
 
         float lowerLimit = mapData.MapLowerLimit;
         float upperLimit = mapData.MapUpperLimit;
         if (upperLimit < lowerLimit)
         {
-            return targetZ;
+            return targetY;
         }
 
         // Keep entity's depth thickness inside map bounds.
         float depthHalfSize = Mathf.Max(0f, entity != null ? entity.Data.DepthSize * 0.5f : 0f);
-        float minZ = lowerLimit + depthHalfSize;
-        float maxZ = upperLimit - depthHalfSize;
-        if (maxZ < minZ)
+        float minY = lowerLimit + depthHalfSize;
+        float maxY = upperLimit - depthHalfSize;
+        if (maxY < minY)
         {
             float mid = (lowerLimit + upperLimit) * 0.5f;
             return mid;
         }
 
-        return Mathf.Clamp(targetZ, minZ, maxZ);
+        return Mathf.Clamp(targetY, minY, maxY);
     }
 
-    private void ResolveBlockByRigidbodies(Entity entity, Vector3 currentLogicPos, ref float targetX, ref float targetZ)
+    private void ResolveBlockByRigidbodies(Entity entity, Vector3 currentLogicPos, ref float targetX, ref float targetY)
     {
         if (entity == null)
         {
@@ -167,30 +168,30 @@ public class EntityMovementController
             return;
         }
 
-        if (!entityManager.IsBlockedByRigidbody(entity, targetX, targetZ))
+        if (!entityManager.IsBlockedByRigidbody(entity, targetX, targetY))
         {
             return;
         }
 
         float xOnlyTarget = targetX;
-        float xOnlyDepth = currentLogicPos.z;
+        float xOnlyDepth = currentLogicPos.y;
         bool canMoveOnXOnly = !entityManager.IsBlockedByRigidbody(entity, xOnlyTarget, xOnlyDepth);
         if (canMoveOnXOnly)
         {
-            targetZ = xOnlyDepth;
+            targetY = xOnlyDepth;
             return;
         }
 
-        float zOnlyTarget = currentLogicPos.x;
-        float zOnlyDepth = targetZ;
-        bool canMoveOnZOnly = !entityManager.IsBlockedByRigidbody(entity, zOnlyTarget, zOnlyDepth);
-        if (canMoveOnZOnly)
+        float yOnlyTarget = currentLogicPos.x;
+        float yOnlyDepth = targetY;
+        bool canMoveOnYOnly = !entityManager.IsBlockedByRigidbody(entity, yOnlyTarget, yOnlyDepth);
+        if (canMoveOnYOnly)
         {
-            targetX = zOnlyTarget;
+            targetX = yOnlyTarget;
             return;
         }
 
         targetX = currentLogicPos.x;
-        targetZ = currentLogicPos.z;
+        targetY = currentLogicPos.y;
     }
 }

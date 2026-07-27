@@ -14,7 +14,9 @@ public class SpawnPoint : MonoBehaviour
 
     /// <summary>
     /// 按当前 Transform 的渲染坐标反算逻辑坐标。
-    /// renderY = logicY + logicZ * DepthToVerticalOffset
+    /// Logic: X = horizontal, Y = depth, Z = height.
+    /// renderY = logicZ + logicY * DepthToVerticalOffset
+    /// renderZ = logicY
     /// </summary>
     public Vector3 SpawnLogicPosition
     {
@@ -22,8 +24,8 @@ public class SpawnPoint : MonoBehaviour
         {
             Vector3 renderPos = transform.position;
             float logicX = renderPos.x;
-            float logicZ = renderPos.z;
-            float logicY = renderPos.y - logicZ * GlobalDefine.DepthToVerticalOffset;
+            float logicY = renderPos.z;
+            float logicZ = renderPos.y - logicY * GlobalDefine.DepthToVerticalOffset;
             return new Vector3(logicX, logicY, logicZ);
         }
     }

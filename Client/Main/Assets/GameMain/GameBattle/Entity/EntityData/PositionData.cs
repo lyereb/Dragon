@@ -1,13 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class PositionData
 {
     #region 位置
     public float X { get; private set; }
-    public float Y { get; private set; } // Height, usually for jump.
-    public float Z { get; private set; } // Depth on battle plane.
+    public float Y { get; private set; } // Depth on battle plane.
+    public float Z { get; private set; } // Height, usually for jump.
 
     public Vector3 LogicPosition => new Vector3(X, Y, Z);
     #endregion
@@ -31,13 +29,14 @@ public class PositionData
 
     /// <summary>
     /// Convert logic position (x,y,z) to render position.
-    /// depthToVerticalOffset controls how much Z contributes to rendered Y.
+    /// Logic: X = horizontal, Y = depth, Z = height.
+    /// Render: depth (Y) contributes to rendered vertical via DepthToVerticalOffset.
     /// Example:
     /// - 0f   : no 2.5D projection offset.
     /// - 0.5f : every 1 depth adds 0.5 vertical render offset.
     /// </summary>
     public Vector3 GetRenderPosition()
     {
-        return new Vector3(X, Y + Z * GlobalDefine.DepthToVerticalOffset, Z);
+        return new Vector3(X, Z + Y * GlobalDefine.DepthToVerticalOffset, Y);
     }
 }

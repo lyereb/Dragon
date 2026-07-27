@@ -78,10 +78,10 @@ public class EntityManager
 
     //占位检测, entity是否被其他entity的rigidbody阻挡
     //mover: 移动者
-    //targetX: 目标X
-    //targetZ: 目标Z
+    //targetX: 目标X（水平）
+    //targetY: 目标Y（深度）
     //返回值: 是否被阻挡
-    public bool IsBlockedByRigidbody(Entity mover, float targetX, float targetZ)
+    public bool IsBlockedByRigidbody(Entity mover, float targetX, float targetY)
     {
         if (mover == null || mover.Data == null)
         {
@@ -92,8 +92,8 @@ public class EntityManager
         float moverHalfDepth = Mathf.Max(0f, mover.Data.DepthSize * 0.5f);
         float moverMinX = targetX - moverHalfWidth;
         float moverMaxX = targetX + moverHalfWidth;
-        float moverMinZ = targetZ - moverHalfDepth;
-        float moverMaxZ = targetZ + moverHalfDepth;
+        float moverMinY = targetY - moverHalfDepth;
+        float moverMaxY = targetY + moverHalfDepth;
 
         for (int i = 0; i < _entities.Count; i++)
         {
@@ -113,12 +113,12 @@ public class EntityManager
             float otherHalfDepth = Mathf.Max(0f, other.Data.DepthSize * 0.5f);
             float otherMinX = otherPos.x - otherHalfWidth;
             float otherMaxX = otherPos.x + otherHalfWidth;
-            float otherMinZ = otherPos.z - otherHalfDepth;
-            float otherMaxZ = otherPos.z + otherHalfDepth;
+            float otherMinY = otherPos.y - otherHalfDepth;
+            float otherMaxY = otherPos.y + otherHalfDepth;
 
             bool overlapX = moverMinX < otherMaxX && moverMaxX > otherMinX;
-            bool overlapZ = moverMinZ < otherMaxZ && moverMaxZ > otherMinZ;
-            if (overlapX && overlapZ)
+            bool overlapY = moverMinY < otherMaxY && moverMaxY > otherMinY;
+            if (overlapX && overlapY)
             {
                 return true;
             }
