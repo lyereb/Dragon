@@ -16,7 +16,6 @@ namespace Dragon.GameUI
         private Tween _moveTween;
         private float _gap;
         private bool _hasReportedFullyEntered;
-        private bool _destroyOnComplete = true;
         private Action<UIDanmakuItem> _onFullyEntered;
         private Action<UIDanmakuItem> _onCompleted;
 
@@ -30,27 +29,24 @@ namespace Dragon.GameUI
         }
 
         /// <summary>
-        /// 配置并开始从右向左滚动。
+        /// 配置并开始从右向左滚动；滚出后销毁自身。
         /// </summary>
         /// <param name="rootRect">弹幕根 Rect（全屏）。</param>
         /// <param name="topOffset">距屏幕顶像素。</param>
         /// <param name="gap">与下一条的最小间距（像素），用于完整入屏判定。</param>
         /// <param name="pixelsPerSecond">水平速度。</param>
-        /// <param name="destroyOnComplete">滚出后是否销毁。</param>
         /// <param name="onFullyEntered">右边缘离开屏幕右缘至少 gap 时回调一次。</param>
-        /// <param name="onCompleted">滚出左侧结束回调。</param>
+        /// <param name="onCompleted">滚出左侧结束回调（通知用，之后会 Destroy）。</param>
         public void Play(
             RectTransform rootRect,
             float topOffset,
             float gap,
             float pixelsPerSecond,
-            bool destroyOnComplete,
             Action<UIDanmakuItem> onFullyEntered,
             Action<UIDanmakuItem> onCompleted)
         {
             _rootRect = rootRect;
             _gap = Mathf.Max(0f, gap);
-            _destroyOnComplete = destroyOnComplete;
             _onFullyEntered = onFullyEntered;
             _onCompleted = onCompleted;
             _hasReportedFullyEntered = false;
@@ -133,11 +129,7 @@ namespace Dragon.GameUI
         {
             _moveTween = null;
             _onCompleted?.Invoke(this);
-
-            if (_destroyOnComplete)
-            {
-                Destroy(gameObject);
-            }
+            Destroy(gameObject);
         }
 
         private void EnsureCanvasGroup()

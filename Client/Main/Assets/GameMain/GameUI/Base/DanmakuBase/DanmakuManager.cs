@@ -46,6 +46,7 @@ namespace Dragon.GameUI
 
         /// <summary>
         /// 从 Addressables 加载预制体并入队显示；<paramref name="bind"/> 在实例化后、开始滚动前调用。
+        /// 滚出后默认销毁；<paramref name="onComplete"/> 仅作完成通知。
         /// </summary>
         public void Show(
             string danmakuAddress,
@@ -53,7 +54,7 @@ namespace Dragon.GameUI
             float topOffset = -1f,
             float gap = -1f,
             float speed = -1f,
-            bool destroyOnComplete = true)
+            Action onComplete = null)
         {
             if (string.IsNullOrEmpty(danmakuAddress))
             {
@@ -68,19 +69,20 @@ namespace Dragon.GameUI
                 TopOffset = ResolveTopOffset(topOffset),
                 Gap = ResolveGap(gap),
                 Speed = ResolveSpeed(speed),
-                DestroyOnComplete = destroyOnComplete,
+                OnComplete = onComplete,
             });
         }
 
         /// <summary>
         /// 直接使用已有 GameObject 入队显示（无 UIDanmakuItem 时自动添加）。
+        /// 滚出后默认销毁；<paramref name="onComplete"/> 仅作完成通知。
         /// </summary>
         public void Show(
             GameObject content,
             float topOffset = -1f,
             float gap = -1f,
             float speed = -1f,
-            bool destroyOnComplete = true)
+            Action onComplete = null)
         {
             if (content == null)
             {
@@ -94,7 +96,7 @@ namespace Dragon.GameUI
                 TopOffset = ResolveTopOffset(topOffset),
                 Gap = ResolveGap(gap),
                 Speed = ResolveSpeed(speed),
-                DestroyOnComplete = destroyOnComplete,
+                OnComplete = onComplete,
             });
         }
 
@@ -179,14 +181,18 @@ namespace Dragon.GameUI
             _latestItem = item;
             _spawnInFlight = false;
 
+            Action onComplete = pending.OnComplete;
             item.Play(
                 rootRect,
                 pending.TopOffset,
                 pending.Gap,
                 pending.Speed,
-                pending.DestroyOnComplete,
                 OnItemFullyEntered,
-                OnItemCompleted);
+                completedItem =>
+                {
+                    onComplete?.Invoke();
+                    OnItemCompleted(completedItem);
+                });
         }
 
         private void OnItemFullyEntered(UIDanmakuItem item)
@@ -244,7 +250,7 @@ namespace Dragon.GameUI
             public float TopOffset;
             public float Gap;
             public float Speed;
-            public bool DestroyOnComplete;
+            public Action OnComplete;
         }
     }
 }
