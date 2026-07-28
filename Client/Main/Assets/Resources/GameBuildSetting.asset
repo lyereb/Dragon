@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: GameBuildSetting
   m_EditorClassIdentifier: 
   _isProduction: 0
+  _enableUnityLog: 1

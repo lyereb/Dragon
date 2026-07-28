@@ -12,9 +12,15 @@ namespace Dragon.Library
         public const string AssetPath = "Assets/Resources/GameBuildSetting.asset";
         public const string ResourcesLoadPath = "GameBuildSetting";
 
+        [Header("Environment")]
         [SerializeField]
         [Tooltip("勾选 = 正式环境（隐藏 Debug UI 等）；不勾 = 测试环境。")]
         private bool _isProduction;
+
+        [Header("Logging")]
+        [SerializeField]
+        [Tooltip("关闭后屏蔽 Debug.Log / LogWarning / LogError 等 Unity 日志。")]
+        private bool _enableUnityLog = true;
 
         private static GameBuildSetting _instance;
 
@@ -24,7 +30,24 @@ namespace Dragon.Library
         /// <summary>是否允许保留 Debug 专用对象 / 入口。</summary>
         public static bool AllowDebugUi => !IsProduction;
 
+        /// <summary>是否输出 Unity Debug 日志。</summary>
+        public static bool EnableUnityLog => Get().EnableUnityLogValue;
+
         public bool IsProductionValue => _isProduction;
+
+        public bool EnableUnityLogValue => _enableUnityLog;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ApplyOnLoad()
+        {
+            ApplyRuntimeSettings();
+        }
+
+        /// <summary>按当前配置应用到运行时（日志开关等）。</summary>
+        public static void ApplyRuntimeSettings()
+        {
+            Debug.unityLogger.logEnabled = EnableUnityLog;
+        }
 
         private static GameBuildSetting Get()
         {
@@ -44,9 +67,9 @@ namespace Dragon.Library
 
             if (_instance == null)
             {
-                Debug.LogWarning("[GameBuildSetting] 未找到配置资源，默认按测试环境处理。请用 Tools/Debug 菜单创建。");
                 _instance = CreateInstance<GameBuildSetting>();
                 _instance._isProduction = false;
+                _instance._enableUnityLog = true;
             }
 
             return _instance;
@@ -66,6 +89,7 @@ namespace Dragon.Library
             EnsureResourcesFolder();
             asset = CreateInstance<GameBuildSetting>();
             asset._isProduction = false;
+            asset._enableUnityLog = true;
             UnityEditor.AssetDatabase.CreateAsset(asset, AssetPath);
             UnityEditor.AssetDatabase.SaveAssets();
             UnityEditor.AssetDatabase.Refresh();
@@ -82,6 +106,23 @@ namespace Dragon.Library
             }
 
             _isProduction = isProduction;
+            SaveAsset();
+        }
+
+        public void SetEnableUnityLog(bool enableUnityLog)
+        {
+            if (_enableUnityLog == enableUnityLog)
+            {
+                return;
+            }
+
+            _enableUnityLog = enableUnityLog;
+            SaveAsset();
+            ApplyRuntimeSettings();
+        }
+
+        private void SaveAsset()
+        {
             UnityEditor.EditorUtility.SetDirty(this);
             UnityEditor.AssetDatabase.SaveAssets();
             _instance = this;
