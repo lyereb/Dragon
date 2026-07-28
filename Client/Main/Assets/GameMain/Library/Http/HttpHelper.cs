@@ -189,10 +189,54 @@ namespace Dragon.Library
             return response.Data;
         }
 
+        private static readonly Dictionary<string, Texture2D> TextureCache = new Dictionary<string, Texture2D>();
+
+        /// <summary>
+        /// 按 URL 下载纹理并缓存；命中时直接返回缓存实例（调用方勿 Destroy）。
+        /// </summary>
         public static async UniTask<Texture2D> DownloadTextureAsync(string url, HttpRequestOptions options = null)
         {
+            if (string.IsNullOrEmpty(url))
+            {
+                return null;
+            }
+
+            if (TextureCache.TryGetValue(url, out Texture2D cached) && cached != null)
+            {
+                return cached;
+            }
+
+            Texture2D texture = await DownloadTextureInternalAsync(url, options);
+            if (texture == null)
+            {
+                return null;
+            }
+
+            if (TextureCache.TryGetValue(url, out Texture2D existing) && existing != null)
+            {
+                if (!ReferenceEquals(existing, texture))
+                {
+                    UnityEngine.Object.Destroy(texture);
+                }
+
+                return existing;
+            }
+
+            TextureCache[url] = texture;
+            return texture;
+        }
+
+        private static async UniTask<Texture2D> DownloadTextureInternalAsync(
+            string url,
+            HttpRequestOptions options)
+        {
             options ??= new HttpRequestOptions();
-            using UnityWebRequest request = UnityWebRequestTexture.GetTexture(url);
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // WebGL 走浏览器 Fetch；DownloadHandlerTexture 对部分 JPEG（Content-Type/编码）解码不稳定，统一用 LoadImage。
+            return await DownloadTextureFromBytesAsync(url, options);
+#else
+            using UnityWebRequest request = UnityWebRequestTexture.GetTexture(url, false);
             ApplyOptions(request, options);
 
             try
@@ -205,13 +249,44 @@ namespace Dragon.Library
                 return null;
             }
 
-            if (request.result != UnityWebRequest.Result.Success)
+            if (request.result == UnityWebRequest.Result.Success)
             {
-                Debug.LogError($"[HttpHelper] DownloadTexture failed: {request.error}, url={url}");
+                Texture2D texture = DownloadHandlerTexture.GetContent(request);
+                if (texture != null && texture.width > 0 && texture.height > 0)
+                {
+                    return texture;
+                }
+
+                Debug.LogWarning(
+                    $"[HttpHelper] DownloadTexture decoded empty texture, fallback to LoadImage. url={url}");
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"[HttpHelper] DownloadTexture failed: {request.error}, url={url}, fallback to LoadImage.");
+            }
+
+            return await DownloadTextureFromBytesAsync(url, options);
+#endif
+        }
+
+        private static async UniTask<Texture2D> DownloadTextureFromBytesAsync(string url, HttpRequestOptions options)
+        {
+            byte[] data = await DownloadBytesAsync(url, options);
+            if (data == null || data.Length == 0)
+            {
                 return null;
             }
 
-            return DownloadHandlerTexture.GetContent(request);
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(data, markNonReadable: false))
+            {
+                Debug.LogError($"[HttpHelper] LoadImage failed: url={url}, bytes={data.Length}");
+                UnityEngine.Object.Destroy(texture);
+                return null;
+            }
+
+            return texture;
         }
 
         public static async UniTask<bool> DownloadFileAsync(
