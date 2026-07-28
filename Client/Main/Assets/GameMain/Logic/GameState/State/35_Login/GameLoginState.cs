@@ -24,6 +24,7 @@
 
         protected override void OnEnter(object data)
         {
+            UnityEngine.Debug.Log("GameLoginState:OnEnter");
         }
 
         protected override void OnExit()

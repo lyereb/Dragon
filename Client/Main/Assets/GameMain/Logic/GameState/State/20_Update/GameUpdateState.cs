@@ -19,6 +19,7 @@
 
         protected override void OnEnter(object data)
         {
+            UnityEngine.Debug.Log("GameUpdateState:OnEnter");
         }
 
         protected override void OnExit()

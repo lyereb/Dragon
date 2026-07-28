@@ -184,6 +184,7 @@ namespace Dragon.Library
             await ConfigManager.Init();
             Debug.Log("游戏配置加载完成");
 
+            // 资源的预加载可以移动到其他地方， 比如某个初始化界面打开之后再进行预加载
             Debug.Log("开始预加载基础资源...");
             await ResourcePreloadService.PreloadBootstrapResourcesAsync(null);
             Debug.Log("基础资源预加载完成");

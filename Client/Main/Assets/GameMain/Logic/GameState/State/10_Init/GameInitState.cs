@@ -23,6 +23,7 @@ namespace Dragon.Logic
 
         protected override void OnEnter(object data)
         {
+            UnityEngine.Debug.Log("GameInitState:OnEnter");
             TimeOut = 1;
         }
 

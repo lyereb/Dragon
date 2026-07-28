@@ -26,6 +26,7 @@ namespace Dragon.Logic
 
         protected override void OnEnter(object data)
         {
+            UnityEngine.Debug.Log("GamePreLoadState:OnEnter");
         }
 
         protected override void OnExit()
