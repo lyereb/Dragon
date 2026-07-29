@@ -46,8 +46,8 @@ namespace Dragon.Audio
         private float _bgmVolume = 1f;
         private float _ambientVolume = 1f;
         private float _sfxVolume = 1f;
-        private float _defaultMusicFadeInDuration = 1f;
-        private float _defaultMusicFadeOutDuration = 1f;
+        private float _defaultMusicFadeInDuration = 2f;
+        private float _defaultMusicFadeOutDuration = 2f;
 
         private sealed class SfxChannel
         {

@@ -41,6 +41,7 @@ namespace Dragon.Library
         public static LocalManager LocalManager = null;
         public static TerminalManager TerminalManager = null;
         public static AudioManager AudioManager = null;
+        public static LocalSettingManager LocalSettingManager = null;
         public static ItemManager ItemManager = null;
         public static MapSceneManager MapSceneManager = null;
         #endregion
@@ -220,6 +221,7 @@ namespace Dragon.Library
             LocalManager = LocalManager.Instance;
             TerminalManager = TerminalManager.Instance;
             AudioManager = AudioManager.Instance;
+            LocalSettingManager = LocalSettingManager.Instance;
             ItemManager = ItemManager.Instance;
             MapSceneManager = MapSceneManager.Instance;
             Debug.Log("NeLogicSystem Finished!!");
@@ -231,6 +233,7 @@ namespace Dragon.Library
             LocalManager.Init();
             TerminalManager.Init();
             AudioManager.Init();
+            LocalSettingManager.Init();
             ItemManager.Init();
             MapSceneManager.Init();
             Debug.Log("GameCenter End LogicInitialize!");
@@ -242,6 +245,7 @@ namespace Dragon.Library
         {
             AudioManager.Shutdown();
             ItemManager.Clear();
+            LocalSettingManager.Clear();
             MapSceneManager.Clear();
         }
         #endregion

@@ -58,11 +58,11 @@ public class UILobby : UIBase<UILobbyData>
     /// <summary>调试：在简体中文与英文之间切换。</summary>
     public void OnToggleLanguage()
     {
-        LocalManager localManager = GameCenter.LocalManager;
-        LanguageType nextLanguage = localManager.CurrentLanguage == LanguageType.English
+        LocalSettingManager settings = GameCenter.LocalSettingManager;
+        LanguageType nextLanguage = settings.Language == LanguageType.English
             ? LanguageType.SimplifiedChinese
             : LanguageType.English;
-        localManager.SwitchLanguage(nextLanguage);
+        settings.SetLanguage(nextLanguage);
         Debug.Log($"[Debug] Language switched to {nextLanguage}");
     }
 }

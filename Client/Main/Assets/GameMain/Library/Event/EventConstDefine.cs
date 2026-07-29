@@ -24,6 +24,12 @@
         /// 道具数量发生任何变化后派发；param 为 <see cref="Dragon.Logic.ItemChangeEventParam"/>。
         /// </summary>
         public const int EID_ITEM_INVENTORY_CHANGED = EID_BASE + 1;
+
+        /// <summary>本地语言设置变更；无 param，读 <see cref="LocalSettingManager.Language"/>。</summary>
+        public const int EID_LOCAL_SETTING_LANGUAGE_CHANGED = EID_BASE + 2;
+
+        /// <summary>本地音量设置变更；无 param，读 <see cref="LocalSettingManager"/> 音量属性。</summary>
+        public const int EID_LOCAL_SETTING_VOLUME_CHANGED = EID_BASE + 3;
     }
 
     /// <summary>

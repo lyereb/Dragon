@@ -42,6 +42,9 @@ namespace Dragon.Localization
 
         }
 
+        /// <summary>
+        /// 仅切换内存中的当前语言并通知 UI。用户偏好请走 <see cref="Dragon.Library.LocalSettingManager.SetLanguage"/> 以持久化。
+        /// </summary>
         public void SwitchLanguage(LanguageType language)
         {
             CurrentLanguage = language;
