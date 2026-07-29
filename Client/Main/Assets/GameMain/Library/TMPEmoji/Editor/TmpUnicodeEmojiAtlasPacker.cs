@@ -20,7 +20,6 @@ namespace Dragon.Library.Editor
     public static class TmpUnicodeEmojiAtlasPacker
     {
         private const string PackMenuPath = "Tools/TMP/Pack Unicode Emoji PNGs";
-        private const string FillUnicodeMenuPath = "Tools/TMP/Fill Unicode From Sprite Names";
         private const int MaxAtlasSize = 4096;
         private const int Padding = 2;
 
@@ -323,33 +322,6 @@ namespace Dragon.Library.Editor
 
             if (atlas != null)
                 UnityEngine.Object.DestroyImmediate(atlas);
-        }
-
-        [MenuItem(FillUnicodeMenuPath, false, 2001)]
-        private static void FillUnicodeMenu()
-        {
-            var asset = Selection.activeObject as TMP_SpriteAsset;
-            if (asset == null)
-            {
-                EditorUtility.DisplayDialog("TMP Emoji Packer", "请先在 Project 里选中一个 TMP Sprite Asset。", "OK");
-                return;
-            }
-
-            int mapped = ApplyUnicodeFromNames(asset);
-            string supportPath = CreateOrUpdateSupportAsset(
-                asset.spriteCharacterTable.Select(c => c != null ? c.name : string.Empty).ToList());
-            EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssets();
-            EditorUtility.DisplayDialog(
-                "TMP Emoji Packer",
-                $"已写入 Unicode：{mapped} 个。\nSupport: {supportPath}",
-                "OK");
-        }
-
-        [MenuItem(FillUnicodeMenuPath, true)]
-        private static bool FillUnicodeMenuValidate()
-        {
-            return Selection.activeObject is TMP_SpriteAsset;
         }
 
         /// <summary>EmojiOne 示例约为 115.6/128 ≈ 0.9。</summary>
