@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Dragon.Library;
 using TMPro;
 using UnityEditor;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 using UnityEngine.TextCore;
 
@@ -19,6 +20,7 @@ namespace Dragon.Library.Editor
     public static class TmpUnicodeEmojiAtlasPacker
     {
         private const string PackMenuPath = "Tools/TMP/Pack Unicode Emoji PNGs";
+        private const string FillUnicodeMenuPath = "Tools/TMP/Fill Unicode From Sprite Names";
         private const int MaxAtlasSize = 4096;
         private const int Padding = 2;
 
@@ -102,7 +104,8 @@ namespace Dragon.Library.Editor
             Directory.CreateDirectory(Path.GetDirectoryName(absoluteAtlasPath) ?? "Assets");
             File.WriteAllBytes(absoluteAtlasPath, pngBytes);
 
-            var metas = new SpriteMetaData[uvs.Length];
+            var spriteRects = new SpriteRect[uvs.Length];
+            var nameFileIdPairs = new SpriteNameFileIdPair[uvs.Length];
             for (int i = 0; i < uvs.Length; i++)
             {
                 Rect uv = uvs[i];
@@ -112,14 +115,17 @@ namespace Dragon.Library.Editor
                     Mathf.Round(uv.width * atlas.width),
                     Mathf.Round(uv.height * atlas.height));
 
-                metas[i] = new SpriteMetaData
+                GUID spriteId = GUID.Generate();
+                spriteRects[i] = new SpriteRect
                 {
                     name = spriteNames[i],
                     rect = pixelRect,
-                    alignment = (int)SpriteAlignment.Center,
+                    alignment = SpriteAlignment.Center,
                     pivot = new Vector2(0.5f, 0.5f),
-                    border = Vector4.zero
+                    border = Vector4.zero,
+                    spriteID = spriteId
                 };
+                nameFileIdPairs[i] = new SpriteNameFileIdPair(spriteNames[i], spriteId);
             }
 
             CleanupRuntimeTextures(sourceTextures, atlas);
@@ -137,8 +143,17 @@ namespace Dragon.Library.Editor
             importer.spritePixelsPerUnit = 100;
             importer.maxTextureSize = MaxAtlasSize;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.spritesheet = metas;
             EditorUtility.SetDirty(importer);
+            importer.SaveAndReimport();
+
+            // TextureImporter.spritesheet 已废弃，改用 ISpriteEditorDataProvider
+            var factory = new SpriteDataProviderFactories();
+            factory.Init();
+            ISpriteEditorDataProvider dataProvider = factory.GetSpriteEditorDataProviderFromObject(importer);
+            dataProvider.InitSpriteEditorDataProvider();
+            dataProvider.SetSpriteRects(spriteRects);
+            dataProvider.GetDataProvider<ISpriteNameFileIdDataProvider>().SetNameFileIdPairs(nameFileIdPairs);
+            dataProvider.Apply();
             importer.SaveAndReimport();
 
             EditorUtility.DisplayProgressBar("TMP Emoji Packer", "创建 TMP Sprite Asset...", 0.95f);
@@ -308,6 +323,33 @@ namespace Dragon.Library.Editor
 
             if (atlas != null)
                 UnityEngine.Object.DestroyImmediate(atlas);
+        }
+
+        [MenuItem(FillUnicodeMenuPath, false, 2001)]
+        private static void FillUnicodeMenu()
+        {
+            var asset = Selection.activeObject as TMP_SpriteAsset;
+            if (asset == null)
+            {
+                EditorUtility.DisplayDialog("TMP Emoji Packer", "请先在 Project 里选中一个 TMP Sprite Asset。", "OK");
+                return;
+            }
+
+            int mapped = ApplyUnicodeFromNames(asset);
+            string supportPath = CreateOrUpdateSupportAsset(
+                asset.spriteCharacterTable.Select(c => c != null ? c.name : string.Empty).ToList());
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            EditorUtility.DisplayDialog(
+                "TMP Emoji Packer",
+                $"已写入 Unicode：{mapped} 个。\nSupport: {supportPath}",
+                "OK");
+        }
+
+        [MenuItem(FillUnicodeMenuPath, true)]
+        private static bool FillUnicodeMenuValidate()
+        {
+            return Selection.activeObject is TMP_SpriteAsset;
         }
 
         /// <summary>EmojiOne 示例约为 115.6/128 ≈ 0.9。</summary>
