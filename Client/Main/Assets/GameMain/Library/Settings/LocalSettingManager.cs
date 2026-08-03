@@ -13,6 +13,7 @@ namespace Dragon.Library
         private const string KeyBgmVolume = "local_setting_bgm_volume";
         private const string KeyAmbientVolume = "local_setting_ambient_volume";
         private const string KeySfxVolume = "local_setting_sfx_volume";
+        private const string KeySoundEnabled = "local_setting_sound_enabled";
         private const string TutorialShownKeyPrefix = "tutorial_shown_";
 
         #region Singleton
@@ -36,14 +37,17 @@ namespace Dragon.Library
 
         private bool _initialized;
         private LanguageType _language = LanguageType.SimplifiedChinese;
-        private float _bgmVolume = 1f;
-        private float _ambientVolume = 1f;
-        private float _sfxVolume = 1f;
+        private float _bgmVolume = GlobalDefine.DefaultBgmVolume;
+        private float _ambientVolume = GlobalDefine.DefaultAmbientVolume;
+        private float _sfxVolume = GlobalDefine.DefaultSfxVolume;
+        private bool _soundEnabled = true;
 
         public LanguageType Language => _language;
         public float BgmVolume => _bgmVolume;
         public float AmbientVolume => _ambientVolume;
         public float SfxVolume => _sfxVolume;
+        /// <summary>全局声音开关；关闭时三类音量实际输出为 0，偏好值仍保留。</summary>
+        public bool IsSoundEnabled => _soundEnabled;
 
         /// <summary>
         /// 从 PlayerPrefs 加载并应用到 <see cref="LocalManager"/> / <see cref="AudioManager"/>。
@@ -61,7 +65,7 @@ namespace Dragon.Library
             ApplyLanguage(save: false);
             ApplyVolumes(save: false);
             Debug.Log(
-                $"[LocalSettingManager] Init. language={_language}, " +
+                $"[LocalSettingManager] Init. language={_language}, soundEnabled={_soundEnabled}, " +
                 $"bgm={_bgmVolume:F2}, ambient={_ambientVolume:F2}, sfx={_sfxVolume:F2}");
         }
 
@@ -88,6 +92,26 @@ namespace Dragon.Library
         #endregion
 
         #region Volume
+
+        /// <summary>切换全局声音开关。</summary>
+        public void ToggleSoundEnabled()
+        {
+            SetSoundEnabled(!_soundEnabled);
+        }
+
+        /// <summary>设置全局声音开关；关闭时 BGM/Ambient/SFX 实际输出为 0。</summary>
+        public void SetSoundEnabled(bool enabled)
+        {
+            if (_soundEnabled == enabled)
+            {
+                ApplyVolumes(save: false);
+                return;
+            }
+
+            _soundEnabled = enabled;
+            ApplyVolumes(save: true);
+            EventManager.Instance.TriggerEvent(MainEventDefine.EID_LOCAL_SETTING_VOLUME_CHANGED);
+        }
 
         public void SetBgmVolume(float volume)
         {
@@ -265,9 +289,10 @@ namespace Dragon.Library
             }
 
             _language = (LanguageType)languageValue;
-            _bgmVolume = Mathf.Clamp01(GetFloat(KeyBgmVolume, 1f));
-            _ambientVolume = Mathf.Clamp01(GetFloat(KeyAmbientVolume, 1f));
-            _sfxVolume = Mathf.Clamp01(GetFloat(KeySfxVolume, 1f));
+            _bgmVolume = Mathf.Clamp01(GetFloat(KeyBgmVolume, GlobalDefine.DefaultBgmVolume));
+            _ambientVolume = Mathf.Clamp01(GetFloat(KeyAmbientVolume, GlobalDefine.DefaultAmbientVolume));
+            _sfxVolume = Mathf.Clamp01(GetFloat(KeySfxVolume, GlobalDefine.DefaultSfxVolume));
+            _soundEnabled = GetInt(KeySoundEnabled, 1) != 0;
         }
 
         private void ApplyLanguage(bool save)
@@ -284,9 +309,10 @@ namespace Dragon.Library
             AudioManager audio = AudioManager.Instance;
             if (audio != null)
             {
-                audio.BgmVolume = _bgmVolume;
-                audio.AmbientVolume = _ambientVolume;
-                audio.SfxVolume = _sfxVolume;
+                float scale = _soundEnabled ? 1f : 0f;
+                audio.BgmVolume = _bgmVolume * scale;
+                audio.AmbientVolume = _ambientVolume * scale;
+                audio.SfxVolume = _sfxVolume * scale;
             }
 
             if (save)
@@ -294,6 +320,7 @@ namespace Dragon.Library
                 SetFloat(KeyBgmVolume, _bgmVolume, save: false);
                 SetFloat(KeyAmbientVolume, _ambientVolume, save: false);
                 SetFloat(KeySfxVolume, _sfxVolume, save: false);
+                SetInt(KeySoundEnabled, _soundEnabled ? 1 : 0, save: false);
                 PlayerPrefs.Save();
             }
         }
