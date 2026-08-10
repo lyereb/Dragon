@@ -49,7 +49,6 @@ namespace Dragon.Library
 
         void Update()
         {
-
             if (_isCreated)
             {
                 try
@@ -62,7 +61,6 @@ namespace Dragon.Library
                     Debug.LogException(ex);
                 }
             }
-
         }
 
         void FixedUpdate()
