@@ -19,8 +19,8 @@ public sealed partial class map : Luban.BeanBase
     {
         { if(!_buf["id"].IsNumber) { throw new SerializationException(); }  Id = _buf["id"]; }
         { if(!_buf["sceneName"].IsString) { throw new SerializationException(); }  SceneName = _buf["sceneName"]; }
-        { if(!_buf["upperLimit"].IsNumber) { throw new SerializationException(); }  UpperLimit = _buf["upperLimit"]; }
-        { if(!_buf["lowerLimit"].IsNumber) { throw new SerializationException(); }  LowerLimit = _buf["lowerLimit"]; }
+        { if(!_buf["mapBoundX"].IsObject) { throw new SerializationException(); }  MapBoundX = global::cfg.vector2.Deserializevector2(_buf["mapBoundX"]);  }
+        { if(!_buf["mapBoundY"].IsObject) { throw new SerializationException(); }  MapBoundY = global::cfg.vector2.Deserializevector2(_buf["mapBoundY"]);  }
     }
 
     public static map Deserializemap(JSONNode _buf)
@@ -37,13 +37,13 @@ public sealed partial class map : Luban.BeanBase
     /// </summary>
     public readonly string SceneName;
     /// <summary>
-    /// 地图边界
+    /// 地图左右边界
     /// </summary>
-    public readonly float UpperLimit;
+    public readonly vector2 MapBoundX;
     /// <summary>
-    /// 地图边界
+    /// 地图上下边界
     /// </summary>
-    public readonly float LowerLimit;
+    public readonly vector2 MapBoundY;
    
     public const int __ID__ = -609481983;
     public override int GetTypeId() => __ID__;
@@ -57,8 +57,8 @@ public sealed partial class map : Luban.BeanBase
         return "{ "
         + "id:" + Id + ","
         + "sceneName:" + SceneName + ","
-        + "upperLimit:" + UpperLimit + ","
-        + "lowerLimit:" + LowerLimit + ","
+        + "mapBoundX:" + MapBoundX + ","
+        + "mapBoundY:" + MapBoundY + ","
         + "}";
     }
 }

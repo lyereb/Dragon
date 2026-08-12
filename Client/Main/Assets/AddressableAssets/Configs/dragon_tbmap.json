@@ -2,7 +2,13 @@
   {
     "id": 1,
     "sceneName": "map_001",
-    "upperLimit": 50,
-    "lowerLimit": -50
+    "mapBoundX": {
+      "x": -50,
+      "y": 50
+    },
+    "mapBoundY": {
+      "x": -50,
+      "y": 50
+    }
   }
 ]

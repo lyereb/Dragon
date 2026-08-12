@@ -83,8 +83,8 @@ public class EntityMovementController
         EntityStateCode movementState = ResolveMovementState(hasMoveInput, isGrounded, _isRunBoostActive);
         UpdateCharacterState(entity, movementState);
 
-        float nextX = currentLogicPos.x + moveDelta.x;
-        float nextY = ClampDepthInMapBoundary(entity, currentLogicPos.y + moveDelta.y);
+        float nextX = ClampAxisInMapBoundary(entity, currentLogicPos.x + moveDelta.x, useDepthSize: false);
+        float nextY = ClampAxisInMapBoundary(entity, currentLogicPos.y + moveDelta.y, useDepthSize: true);
         ResolveBlockByRigidbodies(entity, currentLogicPos, ref nextX, ref nextY);
         entity.Data.Position.SetLogicPosition(nextX, nextY, nextZ);
     }
@@ -127,32 +127,39 @@ public class EntityMovementController
         _lastMovementState = movementState;
     }
 
-    private float ClampDepthInMapBoundary(Entity entity, float targetY)
+    /// <param name="useDepthSize">true 用 DepthSize 钳 Y；false 用 WidthSize 钳 X。</param>
+    private float ClampAxisInMapBoundary(Entity entity, float target, bool useDepthSize)
     {
         MapData mapData = MapSceneManager.Instance.MapData;
         if (mapData == null)
         {
-            return targetY;
+            return target;
         }
 
-        float lowerLimit = mapData.MapLowerLimit;
-        float upperLimit = mapData.MapUpperLimit;
+        cfg.vector2 bound = useDepthSize ? mapData.MapBoundY : mapData.MapBoundX;
+        float lowerLimit = bound.X;
+        float upperLimit = bound.Y;
         if (upperLimit < lowerLimit)
         {
-            return targetY;
+            return target;
         }
 
-        // Keep entity's depth thickness inside map bounds.
-        float depthHalfSize = Mathf.Max(0f, entity != null ? entity.Data.DepthSize * 0.5f : 0f);
-        float minY = lowerLimit + depthHalfSize;
-        float maxY = upperLimit - depthHalfSize;
-        if (maxY < minY)
+        // Keep entity's thickness inside map bounds.
+        float halfSize = 0f;
+        if (entity != null)
         {
-            float mid = (lowerLimit + upperLimit) * 0.5f;
-            return mid;
+            float size = useDepthSize ? entity.Data.DepthSize : entity.Data.WidthSize;
+            halfSize = Mathf.Max(0f, size * 0.5f);
         }
 
-        return Mathf.Clamp(targetY, minY, maxY);
+        float min = lowerLimit + halfSize;
+        float max = upperLimit - halfSize;
+        if (max < min)
+        {
+            return (lowerLimit + upperLimit) * 0.5f;
+        }
+
+        return Mathf.Clamp(target, min, max);
     }
 
     private void ResolveBlockByRigidbodies(Entity entity, Vector3 currentLogicPos, ref float targetX, ref float targetY)
