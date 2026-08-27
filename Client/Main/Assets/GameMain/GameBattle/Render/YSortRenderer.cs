@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// 根据世界坐标 Y 轴动态调整 Renderer.sortingOrder，不修改 Sorting Layer。
 /// 挂在角色或场景物件上；渲染器在子节点时，请指定 <see cref="_sortTransform"/> 为逻辑位置节点（通常为根节点）。
+/// 静态模式（<see cref="_static"/>）适用于位置不变的装饰物：仅在 Enable 时计算一次，不再每帧 LateUpdate。
 /// </summary>
 [DisallowMultipleComponent]
 public class YSortRenderer : MonoBehaviour
@@ -22,6 +23,8 @@ public class YSortRenderer : MonoBehaviour
     [SerializeField] private float _precision = 100f;
     [Tooltip("勾选后 Y 越大越靠前；默认 Y 越小越靠前。")]
     [SerializeField] private bool _invertY;
+    [Tooltip("勾选后仅在 Enable 时计算一次 sortingOrder，不再每帧更新。适用于地图装饰等不会移动的物件。")]
+    [SerializeField] private bool _static;
 
     private int _lastAppliedOrder = int.MinValue;
     private float _lastSortY = float.NaN;
@@ -39,10 +42,19 @@ public class YSortRenderer : MonoBehaviour
     private void OnEnable()
     {
         ForceRefresh();
+        if (_static)
+        {
+            enabled = false;
+        }
     }
 
     private void LateUpdate()
     {
+        if (_static)
+        {
+            return;
+        }
+
         TryApplySort();
     }
 
@@ -54,6 +66,11 @@ public class YSortRenderer : MonoBehaviour
         _lastAppliedOrder = int.MinValue;
         _lastSortY = float.NaN;
         TryApplySort();
+
+        if (_static)
+        {
+            enabled = false;
+        }
     }
 
     private void ResolveRenderer()
