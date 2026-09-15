@@ -10,9 +10,14 @@ namespace Dragon.Library
     /// </summary>
     public class UIGMPanelDebugLog : MonoBehaviour
     {
+        private const float BottomThreshold = 0.02f;
+
         [SerializeField] private TextMeshProUGUI _logText;
         [SerializeField] private ScrollRect _scrollRect;
         [SerializeField] private Button _clearButton;
+
+        private bool _followBottom = true;
+        private Coroutine _scrollCoroutine;
 
         private void Awake()
         {
@@ -21,6 +26,12 @@ namespace Dragon.Library
                 _clearButton.onClick.RemoveListener(OnClickClear);
                 _clearButton.onClick.AddListener(OnClickClear);
             }
+
+            if (_scrollRect != null)
+            {
+                _scrollRect.onValueChanged.RemoveListener(OnScrollValueChanged);
+                _scrollRect.onValueChanged.AddListener(OnScrollValueChanged);
+            }
         }
 
         private void OnDestroy()
@@ -28,6 +39,11 @@ namespace Dragon.Library
             if (_clearButton != null)
             {
                 _clearButton.onClick.RemoveListener(OnClickClear);
+            }
+
+            if (_scrollRect != null)
+            {
+                _scrollRect.onValueChanged.RemoveListener(OnScrollValueChanged);
             }
         }
 
@@ -38,12 +54,19 @@ namespace Dragon.Library
                 return;
             }
 
+            _followBottom = true;
             GameCenter.GMPanelManager.DebugLogManager.Changed += OnLogsChanged;
             RefreshLogText(scrollToBottom: true);
         }
 
         private void OnDisable()
         {
+            if (_scrollCoroutine != null)
+            {
+                StopCoroutine(_scrollCoroutine);
+                _scrollCoroutine = null;
+            }
+
             if (GameCenter.GMPanelManager?.DebugLogManager == null)
             {
                 return;
@@ -57,9 +80,19 @@ namespace Dragon.Library
             GameCenter.GMPanelManager?.DebugLogManager?.Clear();
         }
 
+        private void OnScrollValueChanged(Vector2 _)
+        {
+            if (_scrollRect == null)
+            {
+                return;
+            }
+
+            _followBottom = _scrollRect.verticalNormalizedPosition <= BottomThreshold;
+        }
+
         private void OnLogsChanged()
         {
-            RefreshLogText(scrollToBottom: false);
+            RefreshLogText(scrollToBottom: _followBottom);
         }
 
         private void RefreshLogText(bool scrollToBottom)
@@ -73,21 +106,44 @@ namespace Dragon.Library
 
             if (scrollToBottom)
             {
-                StartCoroutine(ScrollToBottomNextFrame());
+                RequestScrollToBottom();
             }
         }
 
-        private IEnumerator ScrollToBottomNextFrame()
+        private void RequestScrollToBottom()
         {
-            yield return null;
-            Canvas.ForceUpdateCanvases();
-
-            if (_scrollRect == null)
+            if (_scrollCoroutine != null)
             {
-                yield break;
+                StopCoroutine(_scrollCoroutine);
             }
 
-            _scrollRect.verticalNormalizedPosition = 0f;
+            _scrollCoroutine = StartCoroutine(ScrollToBottomWhenReady());
+        }
+
+        private IEnumerator ScrollToBottomWhenReady()
+        {
+            yield return null;
+
+            if (_logText != null)
+            {
+                _logText.ForceMeshUpdate();
+            }
+
+            if (_scrollRect?.content != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_scrollRect.content);
+            }
+
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            if (_scrollRect != null)
+            {
+                _scrollRect.verticalNormalizedPosition = 0f;
+                _followBottom = true;
+            }
+
+            _scrollCoroutine = null;
         }
     }
 }
