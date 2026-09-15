@@ -7,6 +7,5 @@ namespace Dragon.Library
     /// </summary>
     public class UIGMPanelIngame : MonoBehaviour
     {
-        
     }
 }
