@@ -1,18 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Dragon.GameUI;
 using UnityEngine;
 
 namespace Dragon.Library
 {
     /// <summary>
     /// 全局 Debug 日志缓冲，启动后常驻收集 Unity Console 输出。
-    /// 需在 <see cref="GameCenter"/> 中 Init / Shutdown；弹窗依赖 Addressables 键 <see cref="PopupAddress"/>。
+    /// 由 <see cref="GMPanelManager"/> 持有并在 <see cref="GameCenter"/> 中 Init / Shutdown；展示由 <see cref="UIGMPanelDebugLog"/> 负责。
     /// </summary>
     public class DebugLogManager
     {
-        public const string PopupAddress = "popup_debug_log";
         public const int DefaultMaxLines = 500;
 
         private static DebugLogManager _instance;
@@ -82,11 +80,6 @@ namespace Dragon.Library
 
             _lines.Clear();
             Changed?.Invoke();
-        }
-
-        public void OpenPopup()
-        {
-            GameCenter.PopupManager.OpenPopup<PopupDebugLogData>(PopupAddress, new PopupDebugLogData());
         }
 
         private void OnLogMessageReceived(string condition, string stackTrace, LogType type)

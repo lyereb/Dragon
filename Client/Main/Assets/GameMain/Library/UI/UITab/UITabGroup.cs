@@ -59,6 +59,17 @@ namespace Dragon.GameUI
 
         private void Start()
         {
+            if (_buttonBindings.Count == 0)
+            {
+                BindButtons();
+            }
+
+            if (_buttonBindings.Count == 0 && EntryCount > 0)
+            {
+                Debug.LogWarning(
+                    $"{nameof(UITabGroup)}: 未绑定任何 Tab 按钮，请检查 Entries 中的 Tab 是否已关联 UITabItem。节点={name}");
+            }
+
             if (CurrentIndex < 0)
             {
                 SelectDefault(_notifyOnInitialize);

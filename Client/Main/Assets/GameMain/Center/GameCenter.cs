@@ -32,7 +32,7 @@ namespace Dragon.Library
         public static GameUIManager GameUIManager = null;
         public static PopupManager PopupManager = null;
         public static ToastManager ToastManager = null;
-        public static DebugLogManager DebugLogManager = null;
+        public static GMPanelManager GMPanelManager = null;
         public static UIQueueManager UIQueueManager = null;
         public static PoolManager PoolManager = null;
         #endregion
@@ -153,8 +153,8 @@ namespace Dragon.Library
             PopupManager = PopupManager.Instance;
             ToastManager = ToastManager.Instance;
             UIQueueManager = UIQueueManager.Instance;
-            DebugLogManager = DebugLogManager.Instance;
-            DebugLogManager.Init();
+            GMPanelManager = GMPanelManager.Instance;
+            GMPanelManager.Init();
             PoolManager = PoolManager.Instance;
 
             Debug.Log("NewCoreSystem Finished!!");
@@ -210,7 +210,7 @@ namespace Dragon.Library
             InputManager.Shutdown();
             PoolManager.ClearAll();
             ResourceManager.ClearAll();
-            DebugLogManager.Shutdown();
+            GMPanelManager.Shutdown();
         }
         #endregion
 

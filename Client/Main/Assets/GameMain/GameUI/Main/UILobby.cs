@@ -43,26 +43,4 @@ public class UILobby : UIBase<UILobbyData>
         });
     }
 
-    public void OnOpenDebugLog()
-    {
-        GameCenter.DebugLogManager.OpenPopup();
-    }
-
-    public void OnTestTut()
-    {
-        PopupManager.Instance.OpenPopup(
-            "popup_tutorial_template",
-            new PopupTutorialSlideData());
-    }
-
-    /// <summary>调试：在简体中文与英文之间切换。</summary>
-    public void OnToggleLanguage()
-    {
-        LocalSettingManager settings = GameCenter.LocalSettingManager;
-        LanguageType nextLanguage = settings.Language == LanguageType.English
-            ? LanguageType.SimplifiedChinese
-            : LanguageType.English;
-        settings.SetLanguage(nextLanguage);
-        Debug.Log($"[Debug] Language switched to {nextLanguage}");
-    }
 }
