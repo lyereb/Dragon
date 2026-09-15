@@ -33,6 +33,7 @@ namespace Dragon.Logic
         public EntitySpawnner EntitySpawnner { get; private set; }
         public EntityManager EntityManager { get; private set; }
         public CameraManager CameraManager { get; private set; }
+        public Lighting2DManager Lighting2DManager { get; private set; }
 
         public void InitEntitySpawnner()
         {
@@ -49,6 +50,8 @@ namespace Dragon.Logic
             EntityManager.Initialize();
             CameraManager = new CameraManager();
             CameraManager.Initialize();
+            // Lighting2DManager = new Lighting2DManager();
+            // Lighting2DManager.Initialize();
         }
 
         public async UniTask SpawnAllEntities()
@@ -117,6 +120,7 @@ namespace Dragon.Logic
         {
             _isEntityLoaded = false;
             CameraManager?.Clear();
+            Lighting2DManager?.Clear();
             Debug.Log("MapSceneManager Clear");
         }
 
@@ -146,9 +150,11 @@ namespace Dragon.Logic
             _isEntityLoaded = false;
             EntityManager.Clear();
             CameraManager.Clear();
+            Lighting2DManager?.Clear();
             EntitySpawnner = null;
             EntityManager = null;
             CameraManager = null;
+            Lighting2DManager = null;
             MapData = null;
 
             SceneManager.LoadSceneAsync("MainMenu", LoadSceneMode.Single);
