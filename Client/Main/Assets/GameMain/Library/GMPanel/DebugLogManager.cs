@@ -190,7 +190,7 @@ namespace Dragon.Library
 
         private void OnLogMessageReceived(string condition, string stackTrace, LogType type)
         {
-            AddEntry(type, $"{GetLogPrefix(type)} {condition}");
+            AddEntry(type, $"{GetTimePrefix()} {condition}");
         }
 
         private void AddEntry(LogType type, string line)
@@ -229,20 +229,9 @@ namespace Dragon.Library
             }
         }
 
-        private static string GetLogPrefix(LogType type)
+        private static string GetTimePrefix()
         {
-            switch (type)
-            {
-                case LogType.Error:
-                case LogType.Exception:
-                    return "[Error]";
-                case LogType.Warning:
-                    return "[Warn]";
-                case LogType.Assert:
-                    return "[Assert]";
-                default:
-                    return "[Log]";
-            }
+            return DateTime.Now.ToString("[HH:mm:ss]");
         }
 
         private static string EscapeRichText(string text)
