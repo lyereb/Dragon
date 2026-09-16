@@ -40,6 +40,16 @@ namespace Dragon.Config
 
         public bool IsInitialized => Tables != null;
 
+        public string[] GetConfigFileNames()
+        {
+            return ConfigFileList?.GetConfigArray() ?? Array.Empty<string>();
+        }
+
+        public bool TryGetRawJsonNode(string fileName, out JSONNode node)
+        {
+            return _configData.TryGetValue(fileName, out node);
+        }
+
         private async UniTask LoadConfigsAsync()
         {
             try
