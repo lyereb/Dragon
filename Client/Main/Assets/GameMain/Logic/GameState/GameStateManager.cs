@@ -29,11 +29,10 @@ namespace Dragon.Logic
             {
                 _fsm.Register(new GameInitState());
                 _fsm.Register(new GameUpdateState());
-                _fsm.Register(new GamePreLoadState());
                 _fsm.Register(new GameLoginState());
-                _fsm.Register(new GameMainState());
-                _fsm.Register(new GameLoadingState());
+                _fsm.Register(new GameMainState());                
                 _fsm.Register(new GameFightState());
+                _fsm.Register(new GameLoadingState());
 
                 //最新进行资源预加载
                 ChangeState(GameStateCode.Init);

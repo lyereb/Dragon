@@ -1,32 +1,29 @@
-﻿using UnityEngine;
+﻿using Dragon.GameUI;
 
 namespace Dragon.Logic
 {
-    /// <summary>
-    /// 预加载状态
-    /// </summary>
-    public class GamePreLoadState : GameStateBase
+
+    public class GameInitState: GameStateBase
     {
         #region//变量
 
         #endregion
 
-
         #region//重写父类BaseState的函数
         protected override int OnStateId()
         {
-            return (int)GameStateCode.PreLoad;
+            return (int)GameStateCode.Init;
         }
 
         protected override string OnStateName()
         {
-            return GameStateCode.PreLoad.ToString();
+            return GameStateCode.Init.ToString();
         }
 
 
         protected override void OnEnter(object data)
         {
-            UnityEngine.Debug.Log("GamePreLoadState:OnEnter");
+            UnityEngine.Debug.Log("GameInitState:OnEnter");
         }
 
         protected override void OnExit()

@@ -199,6 +199,8 @@ namespace Dragon.Library
             LogicInitialize();
             _isInitialized = true;
             ResetGameSpeedRate(); //初始化游戏速度
+
+            //进入大厅
             StateManager.ChangeState(GameStateCode.Main);
             Debug.Log("GameCenter End CoreInitialize!");
         }
