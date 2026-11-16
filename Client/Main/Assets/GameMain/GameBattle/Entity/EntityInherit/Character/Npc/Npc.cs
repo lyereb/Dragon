@@ -35,6 +35,7 @@ public class Npc : Character
         data.DepthSize = config.Depth;
         data.isRigidbody = config.IsRigidBody;
         data.ApplyAttributesFromConfig(config.Attribute);
+        Resistances.SetBase(config.Resistance);
 
         //初始化战斗状态值(当前生命值等等)
         CurrentHP = data.GetCurrentAttribute(CharacterAttr.MAX_HP);

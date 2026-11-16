@@ -14,12 +14,3 @@ public static class GlobalDefine
     /// <summary>音效默认主音量（0~1）。</summary>
     public const float DefaultSfxVolume = 1f;
 }
-
-public enum DamageType
-{
-    Physical,
-    Dragon,
-    Fire,
-    Frost,
-    Lightning,
-}

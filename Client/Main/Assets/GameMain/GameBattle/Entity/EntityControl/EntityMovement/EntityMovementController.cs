@@ -23,7 +23,8 @@ public class EntityMovementController
 
         Vector3 currentLogicPos = entity.Data.Position.LogicPosition;
 
-        Vector2 moveInput = inputProvider.GetMoveInput(entity);
+        bool movementLocked = entity.BlocksMovement();
+        Vector2 moveInput = movementLocked ? Vector2.zero : inputProvider.GetMoveInput(entity);
         bool hasMoveInput = moveInput.sqrMagnitude > 0f;
 
         if (!hasMoveInput)
@@ -52,7 +53,7 @@ public class EntityMovementController
             moveDelta.x *= GlobalDefine.BattleRunSpeedMultiplierX;
         }
 
-        bool jumpPressed = inputProvider.GetJumpInput(entity);
+        bool jumpPressed = !movementLocked && inputProvider.GetJumpInput(entity);
         bool isGrounded = currentLogicPos.z <= 0f;
         float verticalVelocity = _verticalVelocity;
         if (isGrounded)

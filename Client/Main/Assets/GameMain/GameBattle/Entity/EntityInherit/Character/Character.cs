@@ -1,3 +1,4 @@
+using cfg.combat.dragon;
 using UnityEngine;
 
 public class Character : Entity, IAttackable
@@ -72,7 +73,26 @@ public class Character : Entity, IAttackable
     public virtual void OnHit(DamageSettlementResult result)
     {
         if (result == null)
+        {
             return;
+        }
+
+        if (result.DamageType != DamageType.Heal && IsInvulnerable())
+        {
+            return;
+        }
+
+        if (result.DamageType == DamageType.Heal)
+        {
+            CurrentHP += result.FinalDamage;
+            float maxHp = Data.GetCurrentAttribute(cfg.entity.dragon.CharacterAttr.MAX_HP);
+            if (maxHp > 0f && CurrentHP > maxHp)
+            {
+                CurrentHP = maxHp;
+            }
+
+            return;
+        }
 
         // 扣除当前生命值（不做 clamp，按存档/公式结果原样反映）
         CurrentHP -= result.FinalDamage;

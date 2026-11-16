@@ -2,6 +2,7 @@ public enum EntityType
 {
     Character,
     Interactable,
+    CombatProp,
 }
 
 public enum CharacterType

@@ -10,11 +10,12 @@ public partial class Entity : FSMHostBase<EntityStateCode>
 {
     public Entity() : base("EntityFSM")
     {
+        InstanceId = _nextInstanceId++;
     }
 
     public EntityData Data { get; protected set; }
 
-    public GameObject Skin { get; private set; }
+    public GameObject Skin { get; protected set; }
 
     public TData GetData<TData>() where TData : EntityData
     {
@@ -56,6 +57,8 @@ public partial class Entity : FSMHostBase<EntityStateCode>
                 Debug.LogError("Initialize Fail,OnInitAfter return false!");
                 return false;
             }
+
+            BindBattleCombat();
         }
         catch (Exception ex)
         {
@@ -156,8 +159,10 @@ public partial class Entity : FSMHostBase<EntityStateCode>
 
     protected virtual void OnUpdate(float dt)
     {
+        UpdateBuffs(dt);
         _movementController?.Update(this, _inputProvider, dt);
         _attackController?.Update(this, _inputProvider, dt);
+        UpdateEmitters(dt);
     }
 
     protected virtual void OnLateUpdate(float dt)
@@ -166,6 +171,7 @@ public partial class Entity : FSMHostBase<EntityStateCode>
 
     protected virtual bool OnUnInitBefore()
     {
+        ShutdownBattleCombat();
         _movementController?.ClearState();
         _attackController?.ClearState();
         _inputProvider = null;

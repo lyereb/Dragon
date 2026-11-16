@@ -1,0 +1,54 @@
+[
+  {
+    "id": 1,
+    "name": "burn",
+    "describe": "持续灼烧，重复施加会叠层并刷新时间",
+    "buffType": 1,
+    "duration": 3,
+    "overlapMode": 3,
+    "maxStack": 5,
+    "tickInterval": 0.5,
+    "modifierIds": [],
+    "dispellable": true,
+    "rules": [],
+    "tickDamageRatio": 0,
+    "tickDamage": 6,
+    "tickDamageType": 2
+  },
+  {
+    "id": 2,
+    "name": "attack_up",
+    "describe": "持续期间造成的伤害提高",
+    "buffType": 1,
+    "duration": 8,
+    "overlapMode": 1,
+    "maxStack": 1,
+    "tickInterval": 0,
+    "modifierIds": [
+      1
+    ],
+    "dispellable": true,
+    "rules": [],
+    "tickDamageRatio": 0,
+    "tickDamage": 0,
+    "tickDamageType": 0
+  },
+  {
+    "id": 3,
+    "name": "stun",
+    "describe": "无法移动，也不能开火",
+    "buffType": 1,
+    "duration": 2,
+    "overlapMode": 1,
+    "maxStack": 1,
+    "tickInterval": 0,
+    "modifierIds": [],
+    "dispellable": true,
+    "rules": [
+      1
+    ],
+    "tickDamageRatio": 0,
+    "tickDamage": 0,
+    "tickDamageType": 0
+  }
+]

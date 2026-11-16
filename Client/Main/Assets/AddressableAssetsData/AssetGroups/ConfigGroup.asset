@@ -23,20 +23,14 @@ MonoBehaviour:
     m_SerializedLabels:
     - Config
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 059eeaa4392097a4cb94d129c2e359f2
-    m_Address: Configs/skill_dragon_tbbuffskill
+  - m_GUID: 069b326fb21c18242aa094d0051b983f
+    m_Address: Configs/combat_dragon_tbcombatprop
     m_ReadOnly: 0
     m_SerializedLabels:
     - Config
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 05cc801f38ee3b6438f27373a1ccb30b
-    m_Address: Configs/skill_dragon_tblaunchskill
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - Config
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 279bd64a306b1b64ab2647c949a5f91a
-    m_Address: Configs/skill_dragon_tbactionskill
+  - m_GUID: 083c5a8019f0c7d449398e05d5fdbdc3
+    m_Address: Configs/combat_dragon_tbemitter
     m_ReadOnly: 0
     m_SerializedLabels:
     - Config
@@ -53,12 +47,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - Config
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 30a61a15cc5c78f40a1d5ce0e0ee2594
-    m_Address: Configs/skill_dragon_tbbuff
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - Config
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 31a15357496517b46884ab712f9a5f96
     m_Address: Configs/entity_dragon_tbplayer
     m_ReadOnly: 0
@@ -71,14 +59,32 @@ MonoBehaviour:
     m_SerializedLabels:
     - Config
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 615d0b770994a1641a6ac2a8c68f3cb1
+    m_Address: Configs/combat_dragon_tbbullet
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7efdbe1d143041443a1c31f70052e648
     m_Address: Configs/dragon_tbitem
     m_ReadOnly: 0
     m_SerializedLabels:
     - Config
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b0e02e6bc6596e04c90c56c9e7d48331
+    m_Address: Configs/combat_dragon_tbbuff
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c442604518044b04fadbf628ebb1d0a1
     m_Address: Configs/entity_dragon_tbenemy
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d9eea25b92c381f4bbdd8d397180fc75
+    m_Address: Configs/combat_dragon_tbmodifier
     m_ReadOnly: 0
     m_SerializedLabels:
     - Config

@@ -35,6 +35,7 @@ public class Player : Character
         data.DepthSize = config.Depth;
         data.isRigidbody = config.IsRigidBody;
         data.ApplyAttributesFromConfig(config.Attribute);
+        Resistances.SetBase(config.Resistance);
 
         //初始化战斗状态值(当前生命值等等)
         CurrentHP = data.GetCurrentAttribute(CharacterAttr.MAX_HP);
@@ -75,6 +76,11 @@ public class Player : Character
         var inputProvider = new PlayerInputProvider();
         inputProvider.Init();
         return inputProvider;
+    }
+
+    protected override int GetDefaultFactionId()
+    {
+        return CombatFaction.Player;
     }
 
     protected override bool OnInitAfter()

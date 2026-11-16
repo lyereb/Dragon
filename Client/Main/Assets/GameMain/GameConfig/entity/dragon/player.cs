@@ -19,6 +19,7 @@ public sealed partial class player : Luban.BeanBase
     {
         { if(!_buf["id"].IsNumber) { throw new SerializationException(); }  Id = _buf["id"]; }
         { var __json0 = _buf["Attribute"]; if(!__json0.IsArray) { throw new SerializationException(); } Attribute = new System.Collections.Generic.Dictionary<entity.dragon.CharacterAttr, float>(__json0.Count); foreach(JSONNode __e0 in __json0.Children) { entity.dragon.CharacterAttr _k0;  { if(!__e0[0].IsNumber) { throw new SerializationException(); }  _k0 = (entity.dragon.CharacterAttr)__e0[0].AsInt; } float _v0;  { if(!__e0[1].IsNumber) { throw new SerializationException(); }  _v0 = __e0[1]; }  Attribute.Add(_k0, _v0); }   }
+        { var __json0 = _buf["Resistance"]; if(!__json0.IsArray) { throw new SerializationException(); } Resistance = new System.Collections.Generic.Dictionary<combat.dragon.DamageType, float>(__json0.Count); foreach(JSONNode __e0 in __json0.Children) { combat.dragon.DamageType _k0;  { if(!__e0[0].IsNumber) { throw new SerializationException(); }  _k0 = (combat.dragon.DamageType)__e0[0].AsInt; } float _v0;  { if(!__e0[1].IsNumber) { throw new SerializationException(); }  _v0 = __e0[1]; }  Resistance.Add(_k0, _v0); }   }
         { if(!_buf["width"].IsNumber) { throw new SerializationException(); }  Width = _buf["width"]; }
         { if(!_buf["depth"].IsNumber) { throw new SerializationException(); }  Depth = _buf["depth"]; }
         { if(!_buf["isRigidBody"].IsBoolean) { throw new SerializationException(); }  IsRigidBody = _buf["isRigidBody"]; }
@@ -38,6 +39,10 @@ public sealed partial class player : Luban.BeanBase
     /// 角色属性
     /// </summary>
     public readonly System.Collections.Generic.Dictionary<entity.dragon.CharacterAttr, float> Attribute;
+    /// <summary>
+    /// 伤害类型抗性，含治疗。小数，0.2即20%。没填的类型是0。枚举新增类型后直接在这里写，不用加列
+    /// </summary>
+    public readonly System.Collections.Generic.Dictionary<combat.dragon.DamageType, float> Resistance;
     /// <summary>
     /// 占用的宽度（x轴）
     /// </summary>
@@ -67,6 +72,7 @@ public sealed partial class player : Luban.BeanBase
         return "{ "
         + "id:" + Id + ","
         + "Attribute:" + Luban.StringUtil.CollectionToString(Attribute) + ","
+        + "Resistance:" + Luban.StringUtil.CollectionToString(Resistance) + ","
         + "width:" + Width + ","
         + "depth:" + Depth + ","
         + "isRigidBody:" + IsRigidBody + ","

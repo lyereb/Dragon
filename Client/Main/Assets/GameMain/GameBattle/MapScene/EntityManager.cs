@@ -63,9 +63,21 @@ public class EntityManager
         for (int i = 0; i < _entities.Count; i++)
         {
             Entity entity = _entities[i];
+            if (entity == null || entity.IsDespawnPending)
+            {
+                continue;
+            }
+
             entity.Update(dt);
             SyncEntitySkinTransform(entity);
         }
+
+        RemoveDespawned();
+    }
+
+    public void BindSkin(Entity entity)
+    {
+        RegisterEntitySkin(entity);
     }
 
     public void LateUpdate(float dt)
@@ -142,6 +154,22 @@ public class EntityManager
             gizmoDrawer = entityRootObject.AddComponent<EntityOccupancyGizmoDrawer>();
         }
         gizmoDrawer.Bind(this);
+    }
+
+    private void RemoveDespawned()
+    {
+        for (int i = _entities.Count - 1; i >= 0; i--)
+        {
+            Entity entity = _entities[i];
+            if (entity == null || !entity.IsDespawnPending)
+            {
+                continue;
+            }
+
+            entity.Uninitialize();
+            UnregisterAndDestroyEntitySkin(entity);
+            _entities.RemoveAt(i);
+        }
     }
 
     private void RegisterEntitySkin(Entity entity)

@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "name": "伤害区域",
+    "describe": "在原地按发射器持续造成范围伤害",
+    "prefabName": "",
+    "duration": 4,
+    "birthDuration": 0,
+    "destroyWhenEmittersDone": false,
+    "emitterIds": [
+      3
+    ],
+    "radius": 0,
+    "enterBuffIds": [],
+    "removeBuffOnExit": true,
+    "targetRelation": 1
+  },
+  {
+    "id": 2,
+    "name": "分裂器",
+    "describe": "生成后射出一圈子弹，然后销毁自己",
+    "prefabName": "",
+    "duration": -1,
+    "birthDuration": 0,
+    "destroyWhenEmittersDone": true,
+    "emitterIds": [
+      4
+    ],
+    "radius": 0,
+    "enterBuffIds": [],
+    "removeBuffOnExit": true,
+    "targetRelation": 1
+  },
+  {
+    "id": 3,
+    "name": "增益区域",
+    "describe": "友方进入后获得增益，离开或结束时移除",
+    "prefabName": "",
+    "duration": 6,
+    "birthDuration": 0,
+    "destroyWhenEmittersDone": false,
+    "emitterIds": [],
+    "radius": 2.5,
+    "enterBuffIds": [
+      2
+    ],
+    "removeBuffOnExit": true,
+    "targetRelation": 2
+  }
+]

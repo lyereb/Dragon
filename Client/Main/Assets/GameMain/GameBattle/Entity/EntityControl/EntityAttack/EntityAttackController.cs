@@ -1,5 +1,3 @@
-using UnityEngine;
-
 public class EntityAttackController
 {
     public void Update(Entity entity, IInputProvider inputProvider, float dt)
@@ -9,11 +7,15 @@ public class EntityAttackController
             return;
         }
 
+        if (entity.BlocksAttack())
+        {
+            return;
+        }
+
         bool isAttackPressed = inputProvider.GetAttackInput(entity);
         if (isAttackPressed)
         {
-            //TODO: 执行攻击逻辑
-            Debug.Log("Attack");
+            entity.NotifyAttackInput();
         }
     }
 

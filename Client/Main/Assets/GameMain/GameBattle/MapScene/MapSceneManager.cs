@@ -32,6 +32,7 @@ namespace Dragon.Logic
 
         public EntitySpawnner EntitySpawnner { get; private set; }
         public EntityManager EntityManager { get; private set; }
+        public BattleCombat BattleCombat { get; private set; }
         public CameraManager CameraManager { get; private set; }
         public Lighting2DManager Lighting2DManager { get; private set; }
 
@@ -48,6 +49,8 @@ namespace Dragon.Logic
             EntitySpawnner.Initialize(spawnRoot.transform);
             EntityManager = new EntityManager();
             EntityManager.Initialize();
+            BattleCombat = new BattleCombat();
+            BattleCombat.Initialize(EntityManager);
             CameraManager = new CameraManager();
             CameraManager.Initialize();
             // Lighting2DManager = new Lighting2DManager();
@@ -121,6 +124,7 @@ namespace Dragon.Logic
             _isEntityLoaded = false;
             CameraManager?.Clear();
             Lighting2DManager?.Clear();
+            BattleCombat?.Clear();
             Debug.Log("MapSceneManager Clear");
         }
 
@@ -132,6 +136,7 @@ namespace Dragon.Logic
             }
 
             EntityManager.Update(deltaTime);
+            BattleCombat?.Update(deltaTime);
         }
 
         public void LateUpdate(float deltaTime)
@@ -149,10 +154,12 @@ namespace Dragon.Logic
         {
             _isEntityLoaded = false;
             EntityManager.Clear();
+            BattleCombat?.Clear();
             CameraManager.Clear();
             Lighting2DManager?.Clear();
             EntitySpawnner = null;
             EntityManager = null;
+            BattleCombat = null;
             CameraManager = null;
             Lighting2DManager = null;
             MapData = null;

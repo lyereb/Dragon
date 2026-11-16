@@ -14,6 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   loadFormat: json
   configFileNames:
+  - combat_dragon_tbbuff
+  - combat_dragon_tbbullet
+  - combat_dragon_tbcombatprop
+  - combat_dragon_tbemitter
+  - combat_dragon_tbmodifier
   - dragon_tbitem
   - dragon_tblocalization
   - dragon_tbmap
@@ -21,7 +26,3 @@ MonoBehaviour:
   - entity_dragon_tbenemy
   - entity_dragon_tbnpc
   - entity_dragon_tbplayer
-  - skill_dragon_tbactionskill
-  - skill_dragon_tbbuff
-  - skill_dragon_tbbuffskill
-  - skill_dragon_tblaunchskill

@@ -17,28 +17,30 @@ public partial class Tables
     public dragon.Tbitem Tbitem {get; }
     public dragon.Tblocalization Tblocalization {get; }
     public dragon.Tbmap Tbmap {get; }
+    public combat.dragon.Tbbuff Tbbuff {get; }
+    public combat.dragon.Tbbullet Tbbullet {get; }
+    public combat.dragon.TbcombatProp TbcombatProp {get; }
+    public combat.dragon.Tbemitter Tbemitter {get; }
+    public combat.dragon.Tbmodifier Tbmodifier {get; }
     public entity.dragon.Tbblock Tbblock {get; }
     public entity.dragon.Tbenemy Tbenemy {get; }
     public entity.dragon.Tbnpc Tbnpc {get; }
     public entity.dragon.Tbplayer Tbplayer {get; }
-    public skill.dragon.TbactionSkill TbactionSkill {get; }
-    public skill.dragon.Tbbuff Tbbuff {get; }
-    public skill.dragon.TbbuffSkill TbbuffSkill {get; }
-    public skill.dragon.TblaunchSkill TblaunchSkill {get; }
 
     public Tables(System.Func<string, JSONNode> loader)
     {
         Tbitem = new dragon.Tbitem(loader("dragon_tbitem"));
         Tblocalization = new dragon.Tblocalization(loader("dragon_tblocalization"));
         Tbmap = new dragon.Tbmap(loader("dragon_tbmap"));
+        Tbbuff = new combat.dragon.Tbbuff(loader("combat_dragon_tbbuff"));
+        Tbbullet = new combat.dragon.Tbbullet(loader("combat_dragon_tbbullet"));
+        TbcombatProp = new combat.dragon.TbcombatProp(loader("combat_dragon_tbcombatprop"));
+        Tbemitter = new combat.dragon.Tbemitter(loader("combat_dragon_tbemitter"));
+        Tbmodifier = new combat.dragon.Tbmodifier(loader("combat_dragon_tbmodifier"));
         Tbblock = new entity.dragon.Tbblock(loader("entity_dragon_tbblock"));
         Tbenemy = new entity.dragon.Tbenemy(loader("entity_dragon_tbenemy"));
         Tbnpc = new entity.dragon.Tbnpc(loader("entity_dragon_tbnpc"));
         Tbplayer = new entity.dragon.Tbplayer(loader("entity_dragon_tbplayer"));
-        TbactionSkill = new skill.dragon.TbactionSkill(loader("skill_dragon_tbactionskill"));
-        Tbbuff = new skill.dragon.Tbbuff(loader("skill_dragon_tbbuff"));
-        TbbuffSkill = new skill.dragon.TbbuffSkill(loader("skill_dragon_tbbuffskill"));
-        TblaunchSkill = new skill.dragon.TblaunchSkill(loader("skill_dragon_tblaunchskill"));
         ResolveRef();
     }
     
@@ -47,14 +49,15 @@ public partial class Tables
         Tbitem.ResolveRef(this);
         Tblocalization.ResolveRef(this);
         Tbmap.ResolveRef(this);
+        Tbbuff.ResolveRef(this);
+        Tbbullet.ResolveRef(this);
+        TbcombatProp.ResolveRef(this);
+        Tbemitter.ResolveRef(this);
+        Tbmodifier.ResolveRef(this);
         Tbblock.ResolveRef(this);
         Tbenemy.ResolveRef(this);
         Tbnpc.ResolveRef(this);
         Tbplayer.ResolveRef(this);
-        TbactionSkill.ResolveRef(this);
-        Tbbuff.ResolveRef(this);
-        TbbuffSkill.ResolveRef(this);
-        TblaunchSkill.ResolveRef(this);
     }
 }
 
