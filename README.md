@@ -13,7 +13,7 @@
 Dragon/
 ├── Client/Main/          ← Unity 工程（场景、资源、GameMain 代码）
 ├── Config/               ← Luban 配置表源数据与生成脚本
-│   ├── Datas/            ← Excel 源表（item、map、localization、entity、skill 等）
+│   ├── Datas/            ← Excel 源表（item、map、localization、entity、combat 等）
 │   ├── luban.conf        ← 生成配置（client / server / all）
 │   └── gen.bat / gen.sh  ← 生成脚本
 └── README.md
@@ -35,7 +35,7 @@ Dragon/
 | `Library/` | 基础框架：资源、事件、对象池、Time（`UniTaskHelper`）、UI 工具、Transform、HTTP、DebugLog、配置 Editor 工具等 |
 | `Logic/` | 游戏逻辑：状态机、输入、音频、道具、**红点系统** |
 | `Logic/RedDot/` | 红点树、Provider 模板、Registry 注册入口、UI 绑定组件 |
-| `GameBattle/` | 战斗与实体：地图场景、实体 FSM、移动/攻击控制、伤害结算、Y 轴排序渲染 |
+| `GameBattle/` | 地图场景、实体，以及 `Combat/` 下的发射器、子弹、Buff、修改器和结算 |
 | `GameUI/` | UI 管理：主界面、弹窗、Toast、道具界面 |
 | `GameData/` | 运行时用户数据与存档 |
 | `GameConfig/` | Luban 自动生成，勿手改 |
@@ -99,7 +99,7 @@ GameCenter.StateManager.ChangeState(GameStateCode.Fight, param);
 | | |
 |---|---|
 | 位置 | `Assets/GameMain/Global/GlobalDefine.cs` |
-| 概要 | 主菜单场景名、战斗常量（重力、速度倍率）、`DamageType` 枚举 |
+| 概要 | 主菜单场景名、战斗常量（重力、速度倍率）、音量默认值。伤害类型在 Luban 枚举 `cfg.combat.dragon.DamageType` |
 
 ### AddressablesLabelNames
 
@@ -515,8 +515,8 @@ RedDotManager.Instance.RefreshAll();                   // 登录/全量拉取后
 | `EntityInherit/` | 运行时实体类：Character、Player、Enemy、Npc、Block |
 | `EntityState/` | 实体 FSM 状态（Idle/Move/Run/Jump/Birth/Death 等） |
 | `EntityControl/` | 输入提供者、移动控制器、攻击控制器 |
-| `EntityCombat/` | 伤害结算（`CombatDamageSettlement`、`IAttackable`） |
-| `EntityAction/` | 预留目录，尚无实现 |
+| `Entity.Battle.cs` | 阵营、Buff、发射器、移动/攻击/无敌锁、伤害抗性 |
+| `Combat/` | 发射器、子弹、Buff、修改器、战斗物件、结算 |
 
 ### CameraManager
 
@@ -536,19 +536,170 @@ RedDotManager.Instance.RefreshAll();                   // 登录/全量拉取后
 
 地图场景需包含名为 `SpawnRoot` 的 GameObject。
 
-### CombatDamageSettlement
+### 战斗系统
 
-| | |
-|---|---|
-| 命名空间 | 全局 |
-| 概要 | 统一伤害结算入口，基于双方 `Entity.Data` 属性计算最终伤害 |
+代码在 `Assets/GameMain/GameBattle/Combat/`。一场战斗由 `MapSceneManager.BattleCombat` 持有：子弹管理器，以及每个阵营的局内修改器。实体在 `BindBattleCombat` 时挂上 Buff、修改板和初始发射器。
+
+每帧先 `EntityManager.Update`（Buff、移动、攻击输入、发射器），再 `BattleCombat.Update`（子弹）。区域子弹读到的是这一帧已经更新过的发射器朝向。
+
+战斗代码直接读 Luban 表，没有第二份运行时配置。`ConfigManager.Init()` 完成之后：
 
 ```csharp
-var result = CombatDamageSettlement.Settle(attacker, defender, hitContext);
-float damage = result.FinalDamage;
+ConfigManager.Instance.Tables.Tbemitter.GetOrDefault(id);
+ConfigManager.Instance.Tables.Tbbullet.GetOrDefault(id);
+ConfigManager.Instance.Tables.Tbbuff.GetOrDefault(id);
+ConfigManager.Instance.Tables.Tbmodifier.GetOrDefault(id);
+ConfigManager.Instance.Tables.TbcombatProp.GetOrDefault(id);
 ```
 
-相关类型：`AttackHitContext`（命中上下文）、`DamageSettlementResult`（结算结果）、`IAttackable`（可受击接口）。
+枚举用 `cfg.combat.dragon.*`。`CombatDefine.cs` 只留运行时自己的量：`CombatFaction`、发射器/子弹状态、`BuffRemoveReason`。预制体名为空则不加载。
+
+#### 配置表
+
+源表在 `Config/Datas/combat/`，枚举在 `Config/Datas/__enums__.xlsx`。
+
+| 表 | 内容 |
+|----|------|
+| `#dragon.emitter.xlsx` | 发射器：类型、手动/自动、冷却、连发、齐射、弹药、索敌 |
+| `#dragon.bullet.xlsx` | 子弹：飞行、命中形状、伤害、连锁、区域 |
+| `#dragon.buff.xlsx` | Buff：覆盖、层数、规则、周期伤害、修改器 |
+| `#dragon.modifier.xlsx` | 修改器：作用对象、加值或百分比 |
+| `#dragon.combatProp.xlsx` | 战斗物件：生存时间、携带的发射器、区域内 Buff |
+| `entity` 下的 player、enemy、npc | 角色属性，以及按伤害类型配置的 `Resistance` |
+
+`CombatParam` 按号段分：1 段是实体（造成/受到倍率、治疗倍率、暴击），100 段是发射器，200 段是子弹。
+
+#### 阵营
+
+`CombatFaction`：中立 `0`、玩家 `1`、敌对 `2`。玩法可以继续用其它正整数。
+
+| 关系 | 判定 |
+|------|------|
+| 敌对 | 对方不是中立，且和自己不是同一阵营 |
+| 友方 | 同一阵营 |
+| 任意 | 除了自己以外的可受击目标 |
+
+可受击必须实现 `IAttackable`、还活着、有位置。战斗物件不是 `IAttackable`。
+
+#### 发射器
+
+实体创建后调用 `CollectInitialEmitterConfigIds`。战斗物件读自己的 `emitterIds`。角色表还没有这列，要在子类里把 id 填进去，或运行时调用 `Entity.AddEmitter`。
+
+三种类型只决定朝哪打、要不要先有目标。冷却、连发、齐射张角、弹药、出生延迟都在基类表里。
+
+| 类型 | 行为 |
+|------|------|
+| `DirectionalShot` | 必须索到主目标才开火，朝目标方向打，并把该实体交给子弹当 `PreferredTarget`。没有目标就停在准备，不消耗冷却 |
+| `SpreadBurst` | 不索敌。战斗物件沿 `AimDirection` 打，其它持有者朝右。`PreferredTarget` 为空，打中谁由子弹判断 |
+| `SustainedSpray` | 打出一发后停在喷射里，每帧按索敌更新 `AimDirection`，直到这发子弹配置的 `lifeTime` 结束，然后才进入 `fireInterval` 冷却。`lifeTime < 0` 时一直喷到发射器结束。没有目标时，角色不开火；战斗物件改用自己的瞄准方向。目标中途丢失就保持最后朝向 |
+
+手动开火等 `Entity.NotifyAttackInput`。晕眩或缴械时，准备状态不进入开火，已经在喷射里的计时暂停。
+
+索敌参数挂在每把发射器上。现在只有 `DirectionalShot` 和 `SustainedSpray` 会用：
+
+| 参数 | 作用 |
+|------|------|
+| `targetQueryType` | `Nearest` 与 `AllInRange` 现在都是半径内按关系过滤、按距离排序。主目标是第一个。`AllInRange` 和 `maxTargetCount` 预留给一次打多个目标，现有发射器只用第一个 |
+| `searchRadius` | 搜索半径，能被 `SearchRadius` 修改器改 |
+| `targetRelation` | 谁算合法目标。生成子弹时抄到子弹上，子弹判定打谁也用它 |
+| `targetLockDuration` | 主目标锁定时长。锁住期间目标还活着、还在半径里、关系仍合法，就继续用它。小于等于 0 表示每次索敌都重选 |
+
+这把锁在发射器上，用来决定朝哪打。除了持续喷射打出的区域子弹，其它子弹拿到的是开火那一刻的目标，之后不再跟着更新。
+
+#### 子弹
+
+`BulletManager` 是全场子弹的唯一更新者。发射器只负责生成。
+
+| 类型 | 行为 |
+|------|------|
+| `Melee` | 停在生成点，立刻结算一次 |
+| `Linear` | 沿发射方向直线飞，碰到范围内目标再结算 |
+| `Chain` | 先按直线飞。命中后从目标位置再跳 `chainCount` 次。`chainInstant` 为真时瞬移到下一目标，否则飞过去。下一跳的伤害倍率是第一击的 `chainDamageDecay` 的跳数次方，第一击不衰减。一帧只跳一次 |
+| `Zone` | 前方一块区域，按 `tickInterval` 重复结算，命中后不消失。起点跟着持有者。持续喷射发射器还活着时，区域跟着它的 `AimDirection` 转 |
+
+`Zone` 的形状看 `zoneShape`：
+
+| 形状 | 参数 |
+|------|------|
+| `Rect` | 长度 `maxRange`，从中线向两侧的宽度 `hitRadius`。激光用这个 |
+| `Sector` | 半径 `maxRange`，张角 `coneAngle`。喷火用这个 |
+| 圆 | `Sector` 且张角大于等于 360 |
+
+`maxRange < 0` 时区域长度按 1000。`tickInterval` 为 0 表示每帧结算。身体半径会算进矩形和扇形的边缘。
+
+`Single` / `Area` 只给近战和直线用：单体打优先目标或最近的一个，群体受穿透次数限制。穿透小于 0 表示不限。连锁示例用单体。区域子弹自己按形状收集，不走这两种。
+
+直线和近战命中后不再打同一个目标。区域子弹按 `tickInterval` 允许再打。
+
+生成时烤进子弹、之后不再回表的数据：
+
+- `AttackerSnapshot`：攻击者（战斗物件改用 `Source`）、攻击、造成伤害/治疗倍率、暴击、发射器配置 id。发射器对象本身不留在快照里。
+- `BulletRuntimeParams`：速度、存活、距离、命中半径、穿透、伤害倍率、附加伤害、固定伤害。来自子弹行，加上这把发射器的修改器和阵营对「新生成子弹」的修改。已经飞出去的子弹看不到之后的修改。
+- 持续喷射打出的区域子弹会留下发射器引用，只为每帧抄朝向。发射器结束后保持最后方向。
+
+子弹命中还可以给受击者或攻击者挂 Buff，以及按 `spawnPropIds` 生成战斗物件。锚点 `Bullet` 在子弹位置生成一份，`Target` 在每个目标位置各生成一份。
+
+#### 结算
+
+入口是 `CombatDamageSettlement`。子弹走 `TryApplyBulletHit`，Buff 跳点走 `TryApplyBuffTick`。结果交给 `IAttackable.OnHit`。
+
+普通伤害：
+
+`攻击 × damageRatio × DamageDealtRatio + flatDamage`，再减防御，最低 0，乘 `DamageTakenRatio`。然后判定暴击，最后乘 `(1 - 该伤害类型抗性)`。
+
+`damageRatio` 是这一发自己的系数。`DamageDealtRatio` 是实体的造成倍率，默认 1，肉鸽局内加值和普通 Buff 都改它。附加伤害加在乘完两个倍率之后，本身不再乘造成倍率。
+
+固定伤害只取 `fixedDamage`，不吃攻击，不减防御，仍然乘受到倍率、暴击和抗性。
+
+治疗把造成/受到倍率换成 `HealDealtRatio` / `HealReceivedRatio`，不减防御，不走 `DamageTakenRatio`。`Character.OnHit` 里治疗加到当前生命，不超过 `MAX_HP`，不会致死。无敌不挡治疗。
+
+Buff 跳点不暴击。攻击力部分和子弹一样先减防御；`tickDamage` 是固定值，不减防御。两部分相加后乘层数、受到倍率，再乘抗性。两个数都是 0 则不跳。攻击力在跳点当时读取，战斗物件用 `Source`。
+
+抗性在实体的 `DamageResistanceBoard` 上，按 `DamageType` 取值，治疗也在里面。没填的类型是 0，总和限制在 0 到 1。玩家、敌人、NPC 在初始化时用表里的 `Resistance` 调用 `SetBase`。修改器和 Buff 目前还不能改抗性：修改器没有伤害类型字段，而物理的枚举值是 0，不能拿 0 表示「不指定类型」。
+
+#### Buff 与修改器
+
+Buff 表决定持续时间、覆盖和层数。
+
+| 覆盖 | 行为 |
+|------|------|
+| `Replace` | 卸掉旧实例，再挂一个新的 |
+| `ExtendDuration` | 保留旧实例和层数，把持续时间加到剩余时间上 |
+| `Stack` | 层数加一，并重置持续时间。达到上限后只重置时间 |
+
+`rules` 是会改行动的标记，多个用 `|` 分隔，按引用计数叠加：
+
+| 规则 | 效果 |
+|------|------|
+| `Stun` | 不能移动，也不能开火 |
+| `Disarm` | 可以移动，不能开火 |
+| `Invulnerable` | 免疫伤害，不免疫治疗，也不挡住命中时要挂上的 Buff |
+
+移动控制器读 `BlocksMovement()`。攻击输入、手动开火和发射器开火读 `BlocksAttack()`。
+
+周期伤害看 `tickDamageRatio`、`tickDamage`、`tickDamageType`。倍率打在施加者当前攻击力上，固定值另外加上。
+
+修改器由三处持有：
+
+| 位置 | 内容 |
+|------|------|
+| 实体 `CombatModifiers`，或角色属性板 | Buff 和阵营投放的实体修改。`CharacterAttrId > 0` 时改角色属性，否则改战斗参数 |
+| 发射器自己的修改板 | 冷却、连发、齐射、索敌半径 |
+| `FactionCombatContext` | `BattleCombat.AddRunModifier` 放进来的局内修改。实体和发射器范围会推到已挂上的对象；子弹范围留在阵营上，只在生成时烘焙 |
+
+Buff 结束时撤销自己加上的修改器。示例：Buff「攻击提升」通过修改器把 `DamageDealtRatio` 增加 20%。
+
+#### 战斗物件
+
+`CombatProp` 是伤害区域、分裂器、进出才生效的光环。它不是可受击目标。数值结算用 `Source`。朝向存在 `AimDirection`，散射和没有目标的持续喷射会读它。
+
+物件可以自己带发射器，用周期子弹做区域内的持续伤害。站在范围内才生效的 Buff，由物件挂上，离开或物件销毁时按 `SourceEnded` 卸掉。
+
+#### 现在还没覆盖的打法
+
+这套够用的是：锁定一个目标打、沿一个方向散射、持续朝目标喷射一块矩形或扇形区域，再加上直线、近战、连锁。
+
+还没有的是：角色朝自身面朝或摇杆方向开枪、范围内每个目标各一发、发射之后继续追踪转弯、点地或指示器落点、蓄力、连招更换子弹、炮塔自己扫角，以及不按距离选人（随机、血量最低）。嘲讽和护盾已从枚举和表里去掉，没有实现。
 
 ### YSortRenderer
 
@@ -726,7 +877,7 @@ Tools/Config/Auto Config Processor      ← 配置清单维护窗口
 | `cfg.Tables` / `GameConfig/` | Luban 生成的配置表代码 |
 | `dragon/` | item、map、localization |
 | `entity/dragon/` | player、enemy、npc、block、CharacterAttr |
-| `skill/dragon/` | actionSkill、launchSkill、buffSkill、buff |
+| `combat/dragon/` | emitter、bullet、buff、modifier、combatProp，以及伤害类型、发射器类型、区域形状等枚举 |
 | `GameUserData` / `GameMetaData` | 运行时用户数据与存档元信息 |
 | `ConfigFileList` | 配置清单 ScriptableObject，驱动 `ConfigManager` 批量加载 |
 
@@ -798,7 +949,7 @@ flowchart TB
     Logic -.-> RDM[RedDotManager]
     MSM --> EntM[EntityManager]
     MSM --> CamM[CameraManager]
-    MSM --> Combat[CombatDamageSettlement]
+    MSM --> Combat[BattleCombat]
     CM --> Luban[cfg.Tables]
     DM --> Save[GameSaveManager]
     Save --> FIO[FileIO]
@@ -856,3 +1007,4 @@ flowchart TB
 | 本地化 | `LocalizationUIHandler` + `LocalizationHelper` 替代旧 `LocalStringUIHandler`；Editor 预览 `LocalStringEditorPreview` |
 | 配置 Editor | `ConfigDatasAutoGenWatcher`（xlsx 变更自动 Gen）、`AutoConfigProcessor`（配置清单窗口） |
 | `SpriteLoader` | Image / SpriteRenderer 异步换图占位加载 |
+| 战斗框架 | `GameBattle/Combat/`：发射器、子弹、Buff、修改器、抗性和结算直接读 Luban 表。详见上文「战斗系统」 |
