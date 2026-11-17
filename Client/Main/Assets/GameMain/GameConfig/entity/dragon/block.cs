@@ -38,7 +38,7 @@ public sealed partial class block : Luban.BeanBase
     /// </summary>
     public readonly float Width;
     /// <summary>
-    /// 占用深度（z轴）
+    /// 占用深度（y轴）
     /// </summary>
     public readonly float Depth;
     /// <summary>

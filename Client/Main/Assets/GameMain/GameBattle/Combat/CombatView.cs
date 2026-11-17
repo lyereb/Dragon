@@ -27,11 +27,7 @@ public static class CombatView
             return;
         }
 
-        float depth = logicPosition.y;
-        view.transform.position = new Vector3(
-            logicPosition.x,
-            logicPosition.z + depth * GlobalDefine.DepthToVerticalOffset,
-            depth);
+        view.transform.position = new Vector3(logicPosition.x, logicPosition.y, 0f);
     }
 
     public static void Destroy(ref GameObject view)

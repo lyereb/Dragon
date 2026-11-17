@@ -7,8 +7,9 @@ namespace Dragon.Logic
     {
         private const string PlayerCameraObjectName = "PlayerCamera";
         private const string FollowAnchorObjectName = "PlayerCameraFollowAnchor";
-        // 玩家与锚点在 X 轴的最大允许偏移（超出后才推动镜头）
+        // 玩家与锚点在画面平面上的最大允许偏移（超出后才推动镜头）
         private const float FollowThresholdX = 2.5f;
+        private const float FollowThresholdY = 2.5f;
 
         private CinemachineVirtualCamera _virtualCamera;
         private Transform _followAnchor;
@@ -74,8 +75,12 @@ namespace Dragon.Logic
                 anchorPos.x = playerPos.x - Mathf.Sign(deltaX) * FollowThresholdX;
             }
 
-            // 不跟随 Y，避免跳跃导致镜头上下抖动。
-            // 不跟随 Z，保持渲染层深度固定。
+            float deltaY = playerPos.y - anchorPos.y;
+            if (Mathf.Abs(deltaY) > FollowThresholdY)
+            {
+                anchorPos.y = playerPos.y - Mathf.Sign(deltaY) * FollowThresholdY;
+            }
+
             _followAnchor.position = anchorPos;
         }
 

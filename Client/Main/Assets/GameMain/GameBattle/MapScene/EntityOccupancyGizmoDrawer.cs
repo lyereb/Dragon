@@ -36,11 +36,9 @@ public class EntityOccupancyGizmoDrawer : MonoBehaviour
 
             float width = Mathf.Max(0.01f, entity.Data.WidthSize);
             float depth = Mathf.Max(0.01f, entity.Data.DepthSize);
-            float depthProjectedHeight = depth * Mathf.Max(0f, GlobalDefine.DepthToVerticalOffset);
-            float gizmoHeight = Mathf.Max(0.01f, Mathf.Max(_minGizmoHeight, depthProjectedHeight));
             Vector3 renderPosition = entity.Data.Position.GetRenderPosition();
             Vector3 center = new Vector3(renderPosition.x, renderPosition.y, renderPosition.z);
-            Vector3 size = new Vector3(width, gizmoHeight, depth);
+            Vector3 size = new Vector3(width, depth, Mathf.Max(0.01f, _minGizmoHeight));
 
             Color baseColor = entity.Data.isRigidbody ? _rigidbodyColor : _nonRigidbodyColor;
             Gizmos.color = new Color(baseColor.r, baseColor.g, baseColor.b, 0.18f);

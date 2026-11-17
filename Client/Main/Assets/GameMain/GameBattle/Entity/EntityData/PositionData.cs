@@ -28,15 +28,12 @@ public class PositionData
     }
 
     /// <summary>
-    /// Convert logic position (x,y,z) to render position.
-    /// Logic: X = horizontal, Y = depth, Z = height.
-    /// Render: depth (Y) contributes to rendered vertical via DepthToVerticalOffset.
-    /// Example:
-    /// - 0f   : no 2.5D projection offset.
-    /// - 0.5f : every 1 depth adds 0.5 vertical render offset.
+    /// 逻辑坐标换成俯视画面坐标。
+    /// 逻辑 X 是左右，逻辑 Y 是前后，直接对应画面 X/Y。
+    /// 逻辑 Z 是高度。跳跃关闭时高度不画出来。
     /// </summary>
     public Vector3 GetRenderPosition()
     {
-        return new Vector3(X, Z + Y * GlobalDefine.DepthToVerticalOffset, Y);
+        return new Vector3(X, Y, 0f);
     }
 }

@@ -5,6 +5,7 @@ public class EntityManager
 {
     private readonly List<Entity> _entities = new List<Entity>();
     private readonly Dictionary<Entity, GameObject> _entitySkinMap = new Dictionary<Entity, GameObject>();
+    private readonly Dictionary<int, Vector3> _bodyRestOffset = new Dictionary<int, Vector3>();
     private Transform _entityRoot;
 
     public IReadOnlyList<Entity> Entities => _entities;
@@ -13,6 +14,7 @@ public class EntityManager
     {
         _entities.Clear();
         _entitySkinMap.Clear();
+        _bodyRestOffset.Clear();
         InitializeEntityRoot();
     }
 
@@ -56,6 +58,7 @@ public class EntityManager
 
         _entities.Clear();
         _entitySkinMap.Clear();
+        _bodyRestOffset.Clear();
     }
 
     public void Update(float dt)
@@ -202,6 +205,50 @@ public class EntityManager
         }
 
         skin.transform.position = entity.Data.Position.GetRenderPosition();
+        Transform shadow = skin.transform.Find("Shadow");
+        if (shadow != null)
+        {
+            SetLocalOffset(shadow, Vector3.zero);
+        }
+
+        Transform body = skin.transform.Find("Body");
+        if (body == null)
+        {
+            return;
+        }
+
+        int bodyId = body.GetInstanceID();
+        if (!_bodyRestOffset.TryGetValue(bodyId, out Vector3 restOffset))
+        {
+            restOffset = GetLocalOffset(body);
+            _bodyRestOffset.Add(bodyId, restOffset);
+        }
+
+        restOffset.y += entity.Data.Position.Z * GlobalDefine.JumpVisualLift;
+        SetLocalOffset(body, restOffset);
+    }
+
+    private static Vector3 GetLocalOffset(Transform node)
+    {
+        RectTransform rect = node as RectTransform;
+        if (rect != null)
+        {
+            return new Vector3(rect.anchoredPosition.x, rect.anchoredPosition.y, node.localPosition.z);
+        }
+
+        return node.localPosition;
+    }
+
+    private static void SetLocalOffset(Transform node, Vector3 offset)
+    {
+        RectTransform rect = node as RectTransform;
+        if (rect != null)
+        {
+            rect.anchoredPosition = new Vector2(offset.x, offset.y);
+            return;
+        }
+
+        node.localPosition = offset;
     }
 
     private void UnregisterAndDestroyEntitySkin(Entity entity)
@@ -215,6 +262,12 @@ public class EntityManager
         {
             if (skin != null)
             {
+                Transform body = skin.transform.Find("Body");
+                if (body != null)
+                {
+                    _bodyRestOffset.Remove(body.GetInstanceID());
+                }
+
                 Object.Destroy(skin);
             }
             _entitySkinMap.Remove(entity);
