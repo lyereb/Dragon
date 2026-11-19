@@ -47,6 +47,7 @@ namespace Dragon.Library
         private readonly List<DebugLogEntry> _entries = new List<DebugLogEntry>();
         private int _maxLines = DefaultMaxLines;
         private bool _initialized;
+        private bool _notifying;
 
         public int Count => _entries.Count;
         public int LastChangeCount { get; private set; }
@@ -190,6 +191,12 @@ namespace Dragon.Library
 
         private void OnLogMessageReceived(string condition, string stackTrace, LogType type)
         {
+            // TMP 缺字警告会在量高度时打出来。收进日志后再量一遍，会再打出同一条警告。
+            if (IsTextMeshMissingGlyphWarning(condition))
+            {
+                return;
+            }
+
             AddEntry(type, $"{GetTimePrefix()} {condition}");
         }
 
@@ -197,17 +204,37 @@ namespace Dragon.Library
         {
             _entries.Add(new DebugLogEntry(type, line));
             LastChangeCount = 1;
+            DebugLogChangeKind changeKind = DebugLogChangeKind.Append;
 
             if (_entries.Count > _maxLines)
             {
                 int trimmedCount = _entries.Count - _maxLines;
                 _entries.RemoveRange(0, trimmedCount);
                 LastChangeCount = trimmedCount;
-                Changed?.Invoke(DebugLogChangeKind.TrimHead);
+                changeKind = DebugLogChangeKind.TrimHead;
+            }
+
+            if (_notifying)
+            {
                 return;
             }
 
-            Changed?.Invoke(DebugLogChangeKind.Append);
+            _notifying = true;
+            try
+            {
+                Changed?.Invoke(changeKind);
+            }
+            finally
+            {
+                _notifying = false;
+            }
+        }
+
+        private static bool IsTextMeshMissingGlyphWarning(string condition)
+        {
+            return !string.IsNullOrEmpty(condition)
+                && condition.IndexOf("was not found in the [", StringComparison.Ordinal) >= 0
+                && condition.IndexOf("font asset", StringComparison.Ordinal) >= 0;
         }
 
         public static bool MatchesFilter(LogType type, DebugLogFilter filter)
