@@ -27,7 +27,7 @@ namespace Dragon.Library
         public float MeasureHeight(float width, float minHeight, float verticalPadding)
         {
             _rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-            _text.enableWordWrapping = true;
+            _text.textWrappingMode = TextWrappingModes.Normal;
             _text.overflowMode = TextOverflowModes.Overflow;
             _text.ForceMeshUpdate(true, true);
             return Mathf.Max(minHeight, _text.preferredHeight + verticalPadding);

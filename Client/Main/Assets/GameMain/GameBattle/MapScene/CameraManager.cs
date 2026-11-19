@@ -1,4 +1,5 @@
-using Cinemachine;
+using System.Reflection;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace Dragon.Logic
@@ -11,7 +12,7 @@ namespace Dragon.Logic
         private const float FollowThresholdX = 2.5f;
         private const float FollowThresholdY = 2.5f;
 
-        private CinemachineVirtualCamera _virtualCamera;
+        private CinemachineVirtualCameraBase _virtualCamera;
         private Transform _followAnchor;
         private Player _targetPlayer;
         private bool _hasBoundTarget = false;
@@ -25,7 +26,7 @@ namespace Dragon.Logic
                 return;
             }
 
-            _virtualCamera = playerCameraObject.GetComponent<CinemachineVirtualCamera>();
+            _virtualCamera = playerCameraObject.GetComponent<CinemachineVirtualCameraBase>();
 
             if (_virtualCamera == null)
             {
@@ -114,13 +115,22 @@ namespace Dragon.Logic
         {
             if (_virtualCamera != null)
             {
-                var transposer = _virtualCamera.GetCinemachineComponent<CinemachineFramingTransposer>();
-                if (transposer != null)
+                CinemachineComponentBase body = _virtualCamera.GetCinemachineComponent(CinemachineCore.Stage.Body);
+                if (body is CinemachinePositionComposer composer)
                 {
-                    transposer.m_XDamping = damping.x;
-                    transposer.m_YDamping = damping.y;
-                    transposer.m_ZDamping = damping.z;
+                    composer.Damping = damping;
+                    return;
                 }
+
+                if (body == null)
+                {
+                    return;
+                }
+
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+                body.GetType().GetField("m_XDamping", flags)?.SetValue(body, damping.x);
+                body.GetType().GetField("m_YDamping", flags)?.SetValue(body, damping.y);
+                body.GetType().GetField("m_ZDamping", flags)?.SetValue(body, damping.z);
             }
         }
     }

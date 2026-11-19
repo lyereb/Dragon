@@ -1,7 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using Dragon.Localization;
-using SimpleJSON;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,7 +12,7 @@ namespace Dragon.Localization.Editor
         private const string LocalizationJsonPath = "Assets/AddressableAssets/Configs/dragon_tblocalization.json";
         private const string PreviewLanguagePrefKey = "LocalizationUIHandler.PreviewLanguage";
 
-        private static Dictionary<int, JSONNode> _entriesById;
+        private static Dictionary<int, JObject> _entriesById;
         private static string _cachedJsonGuid;
 
         public static LanguageType PreviewLanguage
@@ -29,18 +29,17 @@ namespace Dragon.Localization.Editor
             if (!int.TryParse(key, out int languageId))
                 return key;
 
-            if (!TryLoadTable(out Dictionary<int, JSONNode> entries))
+            if (!TryLoadTable(out Dictionary<int, JObject> entries))
                 return key;
 
-            if (!entries.TryGetValue(languageId, out JSONNode entry))
+            if (!entries.TryGetValue(languageId, out JObject entry))
                 return key;
 
-            string fieldName = LocalizationLanguageMapper.GetFieldName(language);
-            JSONNode valueNode = entry[fieldName];
-            return valueNode != null && valueNode.IsString ? valueNode.Value : key;
+            JToken valueNode = entry[LocalizationLanguageMapper.GetFieldName(language)];
+            return valueNode != null && valueNode.Type == JTokenType.String ? valueNode.Value<string>() : key;
         }
 
-        private static bool TryLoadTable(out Dictionary<int, JSONNode> entries)
+        private static bool TryLoadTable(out Dictionary<int, JObject> entries)
         {
             entries = _entriesById;
             TextAsset jsonAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LocalizationJsonPath);
@@ -55,19 +54,22 @@ namespace Dragon.Localization.Editor
             if (_entriesById != null && _cachedJsonGuid == assetGuid)
                 return true;
 
-            _entriesById = new Dictionary<int, JSONNode>();
+            _entriesById = new Dictionary<int, JObject>();
             _cachedJsonGuid = assetGuid;
 
-            JSONNode root = JSON.Parse(jsonAsset.text);
-            if (root == null || !root.IsArray)
+            if (JToken.Parse(jsonAsset.text) is not JArray rows)
                 return false;
 
-            foreach (JSONNode item in root.AsArray)
+            foreach (JToken item in rows)
             {
-                if (item == null || !item.HasKey("id"))
+                if (item is not JObject row)
                     continue;
 
-                _entriesById[item["id"].AsInt] = item;
+                JToken idNode = row["id"];
+                if (idNode == null || idNode.Type == JTokenType.Null)
+                    continue;
+
+                _entriesById[idNode.Value<int>()] = row;
             }
 
             entries = _entriesById;

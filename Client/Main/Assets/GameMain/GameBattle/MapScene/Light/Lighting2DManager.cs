@@ -83,7 +83,7 @@ namespace Dragon.Logic
             _spotLights.Clear();
             _spotLightRestIntensities.Clear();
 
-            Light2D[] allLights = Object.FindObjectsOfType<Light2D>(true);
+            Light2D[] allLights = Object.FindObjectsByType<Light2D>(FindObjectsInactive.Include);
             for (int i = 0; i < allLights.Length; i++)
             {
                 Light2D light = allLights[i];

@@ -5,7 +5,7 @@ public class EntityManager
 {
     private readonly List<Entity> _entities = new List<Entity>();
     private readonly Dictionary<Entity, GameObject> _entitySkinMap = new Dictionary<Entity, GameObject>();
-    private readonly Dictionary<int, Vector3> _bodyRestOffset = new Dictionary<int, Vector3>();
+    private readonly Dictionary<EntityId, Vector3> _bodyRestOffset = new Dictionary<EntityId, Vector3>();
     private Transform _entityRoot;
 
     public IReadOnlyList<Entity> Entities => _entities;
@@ -217,7 +217,7 @@ public class EntityManager
             return;
         }
 
-        int bodyId = body.GetInstanceID();
+        EntityId bodyId = body.GetEntityId();
         if (!_bodyRestOffset.TryGetValue(bodyId, out Vector3 restOffset))
         {
             restOffset = GetLocalOffset(body);
@@ -265,7 +265,7 @@ public class EntityManager
                 Transform body = skin.transform.Find("Body");
                 if (body != null)
                 {
-                    _bodyRestOffset.Remove(body.GetInstanceID());
+                    _bodyRestOffset.Remove(body.GetEntityId());
                 }
 
                 Object.Destroy(skin);
